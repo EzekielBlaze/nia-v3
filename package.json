@@ -1,0 +1,16 @@
+{
+  "name": "nia-desktop-widget",
+  "version": "1.0.0",
+  "description": "NIA V3 Desktop Widget - Floating AI companion",
+  "main": "widget-main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": ["nia", "widget", "ai", "companion"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}

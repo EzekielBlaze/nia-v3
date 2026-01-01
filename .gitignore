@@ -1,0 +1,66 @@
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Logs
+*.log
+logs/
+data/logs/
+
+# Runtime data
+*.pid
+*.seed
+pids/
+
+# Environment variables
+.env
+.env.local
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Data directories (keep structure, not content)
+data/memories/
+data/backups/
+data/thoughts/
+data/sessions/
+
+# Keep data folder structure but ignore contents
+data/**/*
+!data/.gitkeep
+!data/logs/.gitkeep
+
+# Windows specific
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build output
+dist/
+build/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Config files with sensitive data (if any)
+config.local.json
+
+# Service wrapper temp files
+*.ps1
+
+# Old/backup files
+*-old.js
+*-backup.js
+*-FIXED.js
+widget-main-*.js

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NIA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 120px;
+            height: 180px;
+            overflow: hidden;
+            background: transparent;
+            cursor: move;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        
+        #container {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            position: relative;
+        }
+        
+        #avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        #avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #name {
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 5px;
+        }
+        
+        #status {
+            color: rgba(255,255,255,0.9);
+            font-size: 11px;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        #menu {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        
+        #menu:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        #contextMenu {
+            position: absolute;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            padding: 5px 0;
+            min-width: 140px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .menuItem {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .menuItem:hover {
+            background: #f0f0f0;
+        }
+        
+        .separator {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="container" class="pulse">
+        <div id="menu" onclick="toggleMenu(event)">⋮</div>
+        <div id="avatar">
+            <!-- Image will be set via JavaScript -->
+            <span id="placeholder">🤖</span>
+        </div>
+        <div id="name">NIA</div>
+        <div id="status">Initializing...</div>
+    </div>
+    
+    <div id="contextMenu">
+        <div class="menuItem" onclick="openChat()">💬 Open Chat</div>
+        <div class="separator"></div>
+        <div class="menuItem" onclick="viewStatus()">📊 View Status</div>
+        <div class="menuItem" onclick="viewLogs()">📋 View Logs</div>
+        <div class="separator"></div>
+        <div class="menuItem" onclick="openSettings()">⚙️ Settings</div>
+        <div class="separator"></div>
+        <div class="menuItem" onclick="restartDaemon()">🔄 Restart</div>
+        <div class="separator"></div>
+        <div class="menuItem" onclick="closeWindow()">✕ Close</div>
+    </div>
+    
+    <script>
+        // Check if custom image exists
+        // Try ICO first, then PNG
+        const img = new Image();
+        img.onload = function() {
+            document.getElementById('placeholder').style.display = 'none';
+            const imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            document.getElementById('avatar').appendChild(imgEl);
+        };
+        img.onerror = function() {
+            // Try PNG if ICO fails
+            const img2 = new Image();
+            img2.onload = function() {
+                document.getElementById('placeholder').style.display = 'none';
+                const imgEl = document.createElement('img');
+                imgEl.src = 'nia-avatar.png';
+                document.getElementById('avatar').appendChild(imgEl);
+            };
+            img2.onerror = function() {
+                // Keep placeholder emoji
+                console.log('Using default avatar');
+            };
+            img2.src = 'nia-avatar.png';
+        };
+        img.src = 'nia-icon.ico'; // Try ICO first
+        
+        // Make window draggable
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        
+        document.body.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        
+        function dragStart(e) {
+            if (e.target.id === 'menu' || e.target.classList.contains('menuItem')) return;
+            
+            initialX = e.clientX;
+            initialY = e.clientY;
+            isDragging = true;
+        }
+        
+        function drag(e) {
+            if (!isDragging) return;
+            
+            e.preventDefault();
+            window.moveBy(e.clientX - initialX, e.clientY - initialY);
+        }
+        
+        function dragEnd() {
+            isDragging = false;
+        }
+        
+        // Menu functions
+        function toggleMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('contextMenu');
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                menu.style.display = 'block';
+                menu.style.left = '30px';
+                menu.style.top = '30px';
+            }
+        }
+        
+        // Hide menu when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (!e.target.classList.contains('menuItem') && e.target.id !== 'menu') {
+                document.getElementById('contextMenu').style.display = 'none';
+            }
+        });
+        
+        function openChat() {
+            fetch('http://localhost:3000');
+        }
+        
+        function viewStatus() {
+            // Call status API
+            alert('Status view - coming soon!');
+        }
+        
+        function viewLogs() {
+            // Open logs folder
+        }
+        
+        function openSettings() {
+            // Open settings
+        }
+        
+        function restartDaemon() {
+            if (confirm('Restart NIA daemon?')) {
+                // Call restart
+            }
+        }
+        
+        function closeWindow() {
+            window.close();
+        }
+        
+        // Update status periodically
+        setInterval(updateStatus, 5000);
+        updateStatus();
+        
+        async function updateStatus() {
+            try {
+                // This would call your IPC endpoint
+                // For now, just update the text
+                document.getElementById('status').textContent = 'Running ✓';
+                document.getElementById('container').classList.add('pulse');
+            } catch (err) {
+                document.getElementById('status').textContent = 'Offline';
+                document.getElementById('container').classList.remove('pulse');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<service>
+	<id>niaservice.exe</id>
+	<name>NiaService</name>
+	<description>NIA V3 - AI Companion Background Service</description>
+	<executable>C:\Program Files\nodejs\node.exe</executable>
+	<argument>--max-old-space-size=512</argument>
+	<argument>N:\Nia V3\node_modules\node-windows\lib\wrapper.js</argument>
+	<argument>--file</argument>
+	<argument>N:\Nia V3\service-wrapper.js</argument>
+	<argument>--scriptoptions=</argument>
+	<argument>--log</argument>
+	<argument>NiaService wrapper</argument>
+	<argument>--grow</argument>
+	<argument>0.25</argument>
+	<argument>--wait</argument>
+	<argument>1</argument>
+	<argument>--maxrestarts</argument>
+	<argument>3</argument>
+	<argument>--abortonerror</argument>
+	<argument>n</argument>
+	<argument>--stopparentfirst</argument>
+	<argument>undefined</argument>
+	<logmode>rotate</logmode>
+	<stoptimeout>30sec</stoptimeout>
+	<serviceaccount>
+		<domain>DESKTOP-21KH4NV</domain>
+		<user>LocalSystem</user>
+		<password></password>
+	</serviceaccount>
+	<workingdirectory>N:\Nia V3</workingdirectory>
+</service>

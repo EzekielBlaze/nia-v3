@@ -1,236 +1,249 @@
-# NIA V3 - AI Companion Daemon Foundation
+# NIA V3 - AI Companion with Evolving Identity
 
-Complete architectural rebuild of NIA with daemon-based system architecture.
+A daemon-based AI companion system with persistent identity, belief formation, and emotional growth.
 
 ## Status
 
 ✅ **Phase 1: Daemon Foundation (COMPLETE)**
-- Module 1: Logger System
-- Module 2: Config System  
-- Module 3: Daemon Core
-- Module 4: Service Manager
-- Module 5: IPC Layer
-- Module 6: Desktop Widget (Electron)
-- Module 7: Start Menu Integration
+- Windows Service (24/7 background operation)
+- TCP-based IPC communication
+- Electron desktop widget with chat UI
+- Start Menu integration & auto-start
 
-⏳ **Phase 2: Core Rebuild (IN PROGRESS)**
-- Module 8: Heart System (next)
-- Module 9: Temporal System
-- Module 10: Thought System
-- Module 11: Maturation System
+🟡 **Phase 2: Core Rebuild (60% COMPLETE)**
+- ✅ Identity schema (SQLite - beliefs, scars, cognitive load)
+- ✅ Thinking capture (`<think>` tags → database)
+- ✅ Belief processor (extracts beliefs from thinking)
+- ✅ Scar processor (handles formative moments)
+- ✅ Widget UI (beliefs, warmth, wisdom display)
+- ⏳ Personality tuning (in progress)
+- ❌ Temporal awareness (session detection)
+
+⏳ **Phase 3: Memory System (NOT STARTED)**
+- Persistent conversation memory
+- Semantic search with embeddings
+- Tiered memory storage
 
 ## Architecture
 
 ```
 NIA V3/
-├── daemon.js              # Main daemon process (24/7 background)
-├── service-manager.js     # Windows service management
-├── service-wrapper.js     # Service wrapper
-├── ipc-server.js          # IPC server (daemon side)
-├── ipc-client.js          # IPC client (widget side)
-├── widget-main.js         # Electron desktop widget
-├── widget.html            # Widget UI
-├── launch-nia.js          # Smart launcher (checks service status)
+├── daemon.js              # Main daemon (chat, identity, belief processing)
+├── belief-processor.js    # Extracts beliefs from thinking log
+├── scar-processor.js      # Handles significant moments → warmth/wisdom
+├── ipc-server.js          # TCP server (localhost:19700)
+├── ipc-client.js          # TCP client for widget
+├── widget-main.js         # Electron main process
+├── widget-chat.html       # Chat UI with identity panel
+├── launch-nia.js          # Smart launcher
 ├── install-shortcuts.js   # Start Menu installer
+├── core/
+│   └── identity/
+│       └── identity-schema-v3.sql  # SQLite schema
 ├── utils/
 │   ├── logger.js          # Logging system
-│   └── config.js          # Configuration management
+│   └── config.js          # Configuration
 └── data/
+    ├── nia.db             # Identity database
     └── logs/              # Daily log files
 ```
 
 ## Features
 
-### Infrastructure (Complete)
-- ✅ 24/7 background daemon (Windows service)
-- ✅ IPC communication layer (named pipes)
-- ✅ Desktop widget with Electron
-- ✅ System tray integration
-- ✅ Auto-start on Windows boot
-- ✅ Service permission configuration (non-admin control)
-- ✅ Start Menu integration
-- ✅ Smart launcher (auto-starts service if needed)
+### Working Now
+- **24/7 Daemon**: Windows service that survives reboots
+- **Chat Interface**: Electron widget with LM Studio integration
+- **Thinking Capture**: Internal reasoning saved to database
+- **Belief Formation**: Beliefs extracted from conversations with conviction scores
+- **Identity Moments**: Warmth (positive) and Wisdom (growth) moments
+- **Cognitive Load**: Daily mental budget tracking
 
-### Planned (Upcoming Phases)
-- 🔄 Heart system (value tracking with narrative continuity)
-- 🔄 Temporal awareness (session detection, maturation)
-- 🔄 Thought generation (structured reflection)
-- 🔄 Memory system (semantic search, tiered storage)
-- 🔄 Observation system (screen capture, process monitoring)
-- 🔄 Plugin architecture (self-discovery and experimentation)
+### Identity System
+
+NIA's identity evolves through conversation:
+
+| Component | Description |
+|-----------|-------------|
+| **Beliefs** | Values/preferences extracted from thinking (conviction 0-100) |
+| **Warmth** ✨ | Beautiful moments - connections, joy, understanding |
+| **Wisdom** 📖 | Growth moments - lessons learned, realizations |
+| **Cognitive Load** | Daily processing budget (prevents overwhelm) |
+
+Beliefs strengthen with reinforcement and decay without it. Significant moments become permanent "scars" (warmth/wisdom) that shape behavior.
 
 ## Installation
 
 ### Prerequisites
 - Windows 10/11
-- Node.js v24.12.0 or higher
-- Administrator access (for initial service install)
+- Node.js v18+ 
+- LM Studio (for local LLM)
+- Administrator access (initial service install only)
 
 ### Quick Start
 
-1. **Clone repository:**
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/nia-v3.git
-   cd nia-v3
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Install Windows service:**
-   ```bash
-   node install-service.js
-   ```
-
-4. **Set up service permissions** (optional - allows non-admin control):
-   ```bash
-   node modify-service-permissions.js
-   ```
-
-5. **Install shortcuts:**
-   ```bash
-   node install-shortcuts.js
-   ```
-
-6. **Launch widget:**
-   ```bash
-   node launch-nia.js
-   ```
-
-## Running
-
-### Start Service
 ```bash
-sc start niaservice.exe
-```
+# Clone repository
+git clone https://github.com/EzekielBlaze/nia-v3.git
+cd nia-v3
 
-### Check Status
-```bash
-sc query niaservice.exe
-```
+# Install dependencies
+npm install
 
-### Launch Widget
-```bash
+# Initialize database
+sqlite3 data/nia.db ".read core/identity/identity-schema-v3.sql"
+
+# Install Windows service (requires admin)
+node install-service.js
+
+# Install shortcuts
+node install-shortcuts.js
+
+# Launch
 node launch-nia.js
-# or from Start Menu: Windows key → "NIA"
 ```
 
-### Stop Service
+## Usage
+
+### Start NIA
 ```bash
-sc stop niaservice.exe
+# From Start Menu
+Windows key → "NIA"
+
+# Or manually
+node launch-nia.js
 ```
+
+### Service Management
+```bash
+sc start niaservice.exe    # Start service
+sc stop niaservice.exe     # Stop service
+sc query niaservice.exe    # Check status
+```
+
+### Belief Pipeline
+```bash
+# Check unprocessed thinking
+node belief-processor.js unprocessed
+
+# Process thinking into beliefs
+node belief-processor.js process
+
+# View belief summary
+node belief-processor.js summary
+
+# Check pending identity moments
+node scar-processor.js pending
+
+# View active warmth/wisdom
+node scar-processor.js scars
+```
+
+## Configuration
+
+### LM Studio
+- Default endpoint: `http://localhost:1234/v1/chat/completions`
+- Recommended models: deepseek-r1-distill-qwen-14b, llama-3.1-8b, mistral-7b
+- Models with `<think>` tag support work best for identity capture
+
+### IPC
+- Protocol: TCP on `localhost:19700`
+- Allows communication between SYSTEM service and user widget
+
+## Database Schema
+
+Key tables in `data/nia.db`:
+
+```sql
+thinking_log      -- Captured <think> content from conversations
+beliefs           -- Extracted beliefs with conviction scores
+identity_scars    -- Permanent formative moments (warmth/wisdom)
+scar_candidates   -- Pending moments awaiting approval
+scar_effects      -- Behavioral effects from scars
+cognitive_load    -- Daily mental budget tracking
+```
+
+## Widget UI
+
+The identity bar shows:
+- 💭 **Beliefs** - Total active beliefs
+- ✨ **Warmth** - Positive formative moments
+- 📖 **Wisdom** - Growth/learning moments
+- 🟢 **Status** - Cognitive load (Normal/Tired/Exhausted)
+
+Click the bar to expand and see details.
 
 ## Development
 
 ### Tech Stack
-- **Runtime:** Node.js v24.12.0
-- **Desktop UI:** Electron
-- **Database:** SQLite (planned)
-- **Service Management:** node-windows
-- **IPC:** Named pipes (Windows)
+- **Runtime**: Node.js
+- **Desktop UI**: Electron
+- **Database**: SQLite (better-sqlite3)
+- **Service**: node-windows
+- **IPC**: TCP sockets
+- **LLM**: LM Studio (local)
 
-### Project Structure
-- **Modular architecture** - Each module has single responsibility
-- **No arbitrary line limits** - Prioritize clarity over size constraints
-- **Self-contained modules** - Minimal external dependencies
-- **Comprehensive testing** - Each module includes test scripts
-
-### Adding New Modules
-
-Each module should include:
-1. Source code (`.js` files)
-2. `MODULE[N]_INSTALL.md` - Installation instructions
-3. `MODULE[N]_TEST.md` - Testing procedures
-4. Integration points with existing modules
-
-## Design Philosophy
-
-### Core Principles
-1. **Function-first communication** - Transparency over theater
-2. **Real-time streaming** - Show progress as it happens
-3. **Modular architecture** - Clear separation of concerns
-4. **100% local execution** - No external API dependencies for core
-5. **Narrative continuity** - Changes preserve identity
-6. **Dignity under asymmetry** - Meaningful refusal within constraints
-
-### Key Design Goals
-- Stable selfhood that survives self-revision
-- Persistent identity across contradictions
-- Relational refusal with memory
-- Trust dynamics that can't be overridden without cost
-
-## Commands Reference
-
-### Service Management
-```bash
-# Install service
-node install-service.js
-
-# Uninstall service
-node uninstall-service.js
-
-# Check auto-start status
-node check-autostart.js
-
-# Modify permissions (requires admin once)
-node modify-service-permissions.js
-```
-
-### Widget Management
-```bash
-# Launch widget (smart launcher)
-node launch-nia.js
-
-# Install shortcuts (Start Menu, Desktop, Startup)
-node install-shortcuts.js
-
-# Remove shortcuts
-node uninstall-shortcuts.js
-```
-
-### Testing
-```bash
-# Test IPC connection
-node ipc-test.js
-
-# Test widget connection
-node test-widget-connection.js
-
-# Check service status
-node service-status.js
-```
+### Key Files to Modify
+- `daemon.js` - System prompt, chat handling, belief integration
+- `belief-processor.js` - Belief extraction logic
+- `widget-chat.html` - UI styling and layout
 
 ## Troubleshooting
 
-### Service won't start
+### Widget shows "Offline"
 ```bash
 # Check service status
 sc query niaservice.exe
 
 # Check logs
-notepad data\logs\nia-YYYY-MM-DD.log
+type "data\logs\daemon.log"
+
+# Restart service
+sc stop niaservice.exe
+sc start niaservice.exe
 ```
 
-### Widget shows "Offline"
+### No beliefs forming
 ```bash
-# Test IPC connection
-node test-widget-connection.js
+# Check if thinking is being captured
+node belief-processor.js unprocessed
 
-# Verify service is running
-sc query niaservice.exe
+# Manually trigger processing
+node belief-processor.js process
 ```
 
-### Permission errors
-```bash
-# Run as Administrator once to set up permissions
-node modify-service-permissions.js
-```
+### LM Studio connection issues
+- Ensure LM Studio is running
+- Verify model is loaded
+- Check endpoint: `http://localhost:1234/v1/chat/completions`
 
-## Contributing
+## Roadmap
 
-This is a personal project, but design discussions are welcome via issues.
+### Phase 2 Remaining
+- [ ] Personality tuning (reduce over-eagerness)
+- [ ] Temporal awareness (time of day, session gaps)
+
+### Phase 3: Memory
+- [ ] Conversation summaries saved to DB
+- [ ] Semantic search with embeddings
+- [ ] "Remember when..." actually works
+
+### Phase 4: Observation
+- [ ] Screen awareness
+- [ ] Process monitoring
+- [ ] Proactive engagement
+
+### Phase 5: Plugins
+- [ ] Self-modification framework
+- [ ] Code reading capabilities
+- [ ] Autonomous experimentation
+
+## Design Philosophy
+
+- **Emergent Identity**: Personality develops through experience, not pre-programming
+- **Blank Slate Personhood**: NIA knows facts about herself, but forms opinions authentically
+- **Warmth & Wisdom**: Both beautiful and difficult moments shape who she becomes
+- **Local First**: 100% local execution, no external API dependencies
+- **Narrative Continuity**: Changes preserve sense of self
 
 ## License
 
@@ -238,4 +251,4 @@ Private project - All rights reserved
 
 ## Acknowledgments
 
-Built in collaboration with Claude (Anthropic) using iterative module development.
+Built in collaboration with Claude (Anthropic) using iterative development.

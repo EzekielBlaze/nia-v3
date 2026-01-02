@@ -1,16 +1,30 @@
 {
-  "name": "nia-desktop-widget",
-  "version": "1.0.0",
-  "description": "NIA V3 Desktop Widget - Floating AI companion",
-  "main": "widget-main.js",
+  "name": "nia",
+  "version": "3.0.0",
+  "description": "NIA - Persistent AI with Identity",
+  "main": "index.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder"
+    "start": "node start-daemon.js",
+    "widget": "electron widget-main-chat.js",
+    "test:identity": "node core/query/test-query.js core/identity/identity-schema-v3.sql",
+    "cli": "node core/query/cli.js data/nia.db",
+    "status": "node core/query/cli.js data/nia.db status",
+    "scars": "node core/query/cli.js data/nia.db scars",
+    "check": "node core/query/cli.js data/nia.db check",
+    "install-service": "node install-service.js",
+    "uninstall-service": "node uninstall-service.js"
   },
-  "keywords": ["nia", "widget", "ai", "companion"],
+  "keywords": ["nia", "identity", "ai", "personhood"],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "electron": "^28.0.0"
+  "dependencies": {
+    "better-sqlite3": "^12.5.0",
+    "electron": "^28.0.0",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
+    "node-fetch": "^2.7.0",
+    "node-ipc": "^11.1.0",
+    "node-windows": "^1.0.0-beta.8"
   }
 }

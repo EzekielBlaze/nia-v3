@@ -1,251 +1,212 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
+const { exec } = require('child_process');
 
 /**
- * NIA V3 - Desktop Widget (Electron) - DIAGNOSTIC VERSION
+ * NIA V3 - Desktop Widget + Chat (Electron)
  * 
- * Extensive logging to debug IPC connection issues.
+ * Features:
+ * - Checks/starts daemon service on launch
+ * - Compact widget mode (140x200) with breathing animation
+ * - Expanded chat mode (400x600)
+ * - Draggable
+ * - Quit options: widget only OR widget + service
+ * - System tray
  */
 
 let mainWindow = null;
 let tray = null;
-let ipcClient = null;
 let statusCheckInterval = null;
+let isCompact = false;
+let isChatInProgress = false;
 
-// DIAGNOSTIC: Log everything
+const SIZES = {
+  compact: { width: 140, height: 200 },
+  expanded: { width: 400, height: 600 }
+};
+
 function log(msg) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [WIDGET] ${msg}`);
+  console.log(`[${new Date().toISOString()}] [WIDGET] ${msg}`);
 }
 
-log('=== Widget Main Process Starting ===');
-log(`Process CWD: ${process.cwd()}`);
-log(`__dirname: ${__dirname}`);
-log(`App path: ${app.getAppPath()}`);
+log('=== NIA Widget + Chat Starting ===');
 
-// Try to load IPCClient with error handling
+// Load IPC Client
 let IPCClient = null;
 try {
-  log('Loading IPCClient...');
   IPCClient = require('./ipc-client');
-  log('✓ IPCClient loaded successfully');
+  log('✓ IPCClient loaded');
 } catch (err) {
-  log(`✗ Failed to load IPCClient: ${err.message}`);
-  log(`Stack: ${err.stack}`);
+  log(`✗ IPCClient failed: ${err.message}`);
 }
 
-// Try to load config to check socket name
-try {
-  log('Loading config...');
-  const config = require('./utils/config');
-  const allConfig = config.getAll();
-  log(`✓ Config loaded. Socket name: ${allConfig.ipc_socket_name}`);
-  log(`✓ Base dir: ${allConfig.base_directory}`);
-} catch (err) {
-  log(`✗ Failed to load config: ${err.message}`);
+/**
+ * Check if daemon service is running
+ */
+function isDaemonServiceRunning() {
+  return new Promise((resolve) => {
+    exec('sc.exe query niaservice.exe', (err, stdout) => {
+      if (err) {
+        resolve(false);
+        return;
+      }
+      resolve(stdout.includes('RUNNING'));
+    });
+  });
 }
 
-// Create the floating widget window
+/**
+ * Start the daemon service (requires elevation if not already running)
+ */
+function startDaemonService() {
+  return new Promise((resolve, reject) => {
+    log('Starting daemon service...');
+    
+    // First try without elevation (works if service is just stopped, not if permission denied)
+    exec('sc.exe start niaservice.exe', (err, stdout, stderr) => {
+      if (!err || (stdout && stdout.includes('RUNNING'))) {
+        log('Service started successfully');
+        resolve(true);
+        return;
+      }
+      
+      // If that failed, try elevated
+      log('Trying elevated start...');
+      const cmd = `powershell -Command "Start-Process sc.exe -ArgumentList 'start','niaservice.exe' -Verb RunAs -Wait"`;
+      
+      exec(cmd, (err2) => {
+        if (err2) {
+          log(`Service start may have failed: ${err2.message}`);
+          reject(new Error('Failed to start service'));
+        } else {
+          log('Service started (elevated)');
+          resolve(true);
+        }
+      });
+    });
+  });
+}
+
+/**
+ * Stop the daemon service (requires elevation)
+ */
+function stopDaemonService() {
+  return new Promise((resolve) => {
+    log('Stopping daemon service (will request admin)...');
+    
+    // Use PowerShell to run sc.exe elevated - this will prompt UAC
+    const cmd = `powershell -Command "Start-Process sc.exe -ArgumentList 'stop','niaservice.exe' -Verb RunAs -Wait"`;
+    
+    exec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        log(`Service stop may have failed or been cancelled: ${err.message}`);
+      } else {
+        log('Service stop command completed');
+      }
+      // Wait a moment for service to fully stop
+      setTimeout(resolve, 2000);
+    });
+  });
+}
+
+/**
+ * Ensure daemon is running on startup
+ */
+async function ensureDaemonRunning() {
+  const running = await isDaemonServiceRunning();
+  
+  if (running) {
+    log('Daemon service already running');
+    return true;
+  }
+  
+  log('Daemon service not running, attempting to start...');
+  
+  try {
+    await startDaemonService();
+    // Wait for it to initialize
+    await new Promise(r => setTimeout(r, 2000));
+    return true;
+  } catch (err) {
+    log(`Could not start service: ${err.message}`);
+    return false;
+  }
+}
+
+// Create window
 function createWindow() {
   log('Creating window...');
   
+  const size = isCompact ? SIZES.compact : SIZES.expanded;
+  
   mainWindow = new BrowserWindow({
-    width: 140,
-    height: 200,
+    width: size.width,
+    height: size.height,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
-    type: 'toolbar',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
   });
 
-  mainWindow.loadFile('widget.html');
+  mainWindow.loadFile('widget-chat.html');
   
-  // DIAGNOSTIC: Open DevTools
+  // Uncomment to debug:
   // mainWindow.webContents.openDevTools({ mode: 'detach' });
-  
-  mainWindow.setIgnoreMouseEvents(false);
 
-  ipcMain.on('show-menu', () => {
-    const menu = Menu.buildFromTemplate([
-      { label: '📊 View Status', click: () => { showStatus(); } },
-      { label: '📋 View Logs', click: () => { openLogs(); } },
-      { label: '⚙️ Settings', click: () => { openSettings(); } },
-      { type: 'separator' },
-      { label: '🔄 Restart Daemon', click: () => { restartDaemon(); } },
-      { type: 'separator' },
-      { label: '👁 Hide Widget', click: () => { mainWindow.hide(); } },
-      { label: '❌ Quit (Stop Everything)', click: () => { quitEverything(); } }
-    ]);
-    menu.popup({ window: mainWindow });
-  });
-
-  ipcMain.on('request-status', () => {
-    log('Renderer requested status');
-    checkDaemonStatus();
-  });
-
-  mainWindow.on('blur', () => {});
+  setupIpcHandlers();
   
   log('✓ Window created');
 }
 
-// Check daemon status and send to renderer - DIAGNOSTIC VERSION
-async function checkDaemonStatus() {
-  log('--- checkDaemonStatus() called ---');
-  
-  if (!IPCClient) {
-    log('✗ IPCClient not loaded - cannot check status');
-    sendOfflineStatus('IPCClient not loaded');
-    return;
-  }
-  
-  try {
-    log('Step 1: Creating IPCClient instance...');
-    if (!ipcClient) {
-      ipcClient = new IPCClient();
-      log('✓ IPCClient instance created');
-      log(`  Server ID: ${ipcClient.serverId}`);
-    } else {
-      log('Using existing IPCClient instance');
-    }
-    
-    log('Step 2: Connecting to daemon...');
-    
-    const connectStart = Date.now();
-    await ipcClient.connect();
-    const connectTime = Date.now() - connectStart;
-    log(`✓ Connected! (took ${connectTime}ms)`);
-    
-    log('Step 3: Requesting status...');
-    const status = await ipcClient.getStatus();
-    log(`✓ Got status: running=${status.running}, uptime=${status.uptime}`);
-    
-    // Send to renderer
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('status-update', {
-        online: true,
-        running: status.running,
-        uptime: status.uptime,
-        tickCount: status.tick_count,
-        ipcClients: status.ipc_clients
-      });
-      log('✓ Sent status-update to renderer (online)');
-    }
-    
-    log('Step 4: Disconnecting...');
-    ipcClient.disconnect();
-    ipcClient = null; // Reset for next check
-    log('✓ Disconnected');
-    
-  } catch (err) {
-    log(`✗ Error: ${err.message}`);
-    log(`  Error type: ${err.constructor.name}`);
-    if (err.stack) {
-      log(`  Stack: ${err.stack.split('\n').slice(0, 3).join(' | ')}`);
-    }
-    
-    // Reset client on error
-    if (ipcClient) {
-      try { 
-        ipcClient.disconnect(); 
-      } catch(e) {
-        log(`  Disconnect error: ${e.message}`);
-      }
-      ipcClient = null;
-    }
-    
-    sendOfflineStatus(err.message);
-  }
-  
-  log('--- checkDaemonStatus() complete ---');
-}
-
-function sendOfflineStatus(error) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('status-update', {
-      online: false,
-      error: error
-    });
-    log('Sent status-update to renderer (offline)');
-  }
-}
-
-// Start periodic status checking
-function startStatusChecking() {
-  log('Starting status checking...');
-  
-  // Check after 2 seconds (give window time to load)
-  setTimeout(() => {
-    log('Initial status check...');
-    checkDaemonStatus();
-  }, 2000);
-  
-  // Then check every 5 seconds
-  statusCheckInterval = setInterval(() => {
-    checkDaemonStatus();
-  }, 5000);
-  
-  log('✓ Status checking started (every 5 seconds)');
-}
-
-// Create system tray icon
-function createTray() {
-  log('Creating tray...');
-  
-  const iconPath = path.join(__dirname, 'nia-icon.ico');
-  log(`Tray icon path: ${iconPath}`);
-  
-  const icon = nativeImage.createFromPath(iconPath);
-  
-  tray = new Tray(icon);
-  
-  const contextMenu = Menu.buildFromTemplate([
-    { label: '👁 Show Widget', click: () => { mainWindow.show(); } },
-    { label: '🙈 Hide Widget', click: () => { mainWindow.hide(); } },
-    { type: 'separator' },
-    { label: '💬 Open Chat', click: () => { openChat(); } },
-    { label: '📊 View Status', click: () => { showStatus(); } },
-    { label: '📋 View Logs', click: () => { openLogs(); } },
-    { type: 'separator' },
-    { label: '⚙️ Settings', click: () => { openSettings(); } },
-    { label: '🔄 Restart Daemon', click: () => { restartDaemon(); } },
-    { type: 'separator' },
-    { label: '❌ Quit (Stop Everything)', click: () => { quitEverything(); } }
-  ]);
-  
-  tray.setToolTip('NIA - AI Companion');
-  tray.setContextMenu(contextMenu);
-  
-  tray.on('double-click', () => {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      mainWindow.show();
-    }
+// Set up IPC handlers
+function setupIpcHandlers() {
+  ipcMain.on('resize-window', (event, mode) => {
+    const size = mode === 'compact' ? SIZES.compact : SIZES.expanded;
+    isCompact = mode === 'compact';
+    mainWindow.setSize(size.width, size.height);
+    log(`Window resized to ${mode}`);
   });
   
-  log('✓ Tray created');
+  ipcMain.on('show-menu', () => {
+    const menu = Menu.buildFromTemplate([
+      { label: '📊 Identity Status', click: () => showIdentityStatus() },
+      { label: '📋 View Logs', click: () => openLogs() },
+      { label: '⚙️ Settings', click: () => openSettings() },
+      { type: 'separator' },
+      { label: '🔄 Restart Daemon', click: () => restartDaemon() },
+      { type: 'separator' },
+      { label: '👆 Toggle Size', click: () => mainWindow.webContents.send('toggle-mode') },
+      { label: '🙈 Hide Widget', click: () => mainWindow.hide() },
+      { type: 'separator' },
+      { label: '❌ Quit...', click: () => showQuitDialog() }
+    ]);
+    menu.popup({ window: mainWindow });
+  });
+  
+  ipcMain.on('request-status', () => {
+    if (!isChatInProgress) checkDaemonStatus();
+  });
+  
+  ipcMain.on('request-identity', () => {
+    getIdentityStatus();
+  });
+  
+  ipcMain.on('chat-message', async (event, data) => {
+    await handleChatMessage(data.message);
+  });
 }
 
-// Show status dialog
-async function showStatus() {
-  const { dialog } = require('electron');
-  
-  log('showStatus() called');
+// Check daemon status
+async function checkDaemonStatus() {
+  if (isChatInProgress) return;
   
   if (!IPCClient) {
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'NIA Status',
-      message: 'IPCClient module not loaded.\n\nCheck console for errors.',
-      buttons: ['OK']
-    });
+    sendStatusUpdate(false, 'IPC not loaded');
     return;
   }
   
@@ -253,159 +214,268 @@ async function showStatus() {
     const client = new IPCClient();
     await client.connect();
     const status = await client.getStatus();
-    const health = await client.getHealth();
+    client.disconnect();
+    sendStatusUpdate(true, null, status.uptime);
+  } catch (err) {
+    if (!isChatInProgress) {
+      sendStatusUpdate(false, err.message);
+    }
+  }
+}
+
+function sendStatusUpdate(online, error = null, uptime = null) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('status-update', { online, error, uptime });
+  }
+}
+
+// Get identity status
+async function getIdentityStatus() {
+  if (!IPCClient) return;
+  
+  try {
+    const client = new IPCClient();
+    await client.connect();
     
-    const message = `NIA Status:\n\n` +
-      `Running: ${status.running ? 'Yes ✔' : 'No ✗'}\n` +
-      `Uptime: ${status.uptime}\n` +
-      `Ticks: ${status.tick_count}\n` +
-      `IPC Clients: ${status.ipc_clients}\n` +
-      `Memory: ${(health.memory_usage.heapUsed / 1024 / 1024).toFixed(2)} MB\n` +
-      `Status: ${health.status}\n\n` +
-      `Started: ${new Date(status.start_time).toLocaleString()}\n` +
-      `Last Check: ${new Date(status.last_health_check).toLocaleString()}`;
+    // Get basic identity status
+    const response = await client.request('identity_status', {});
     
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'NIA Status',
-      message: message,
-      buttons: ['OK']
-    });
+    // Also get full beliefs and scars for the panel
+    try {
+      const beliefs = await client.request('beliefs', {});
+      response.beliefs = beliefs;
+    } catch (e) {
+      // Beliefs endpoint might not exist yet
+    }
+    
+    try {
+      const scars = await client.request('scars', {});
+      response.scars = [...(scars.positive || []), ...(scars.negative || [])];
+    } catch (e) {
+      // Scars endpoint might not exist yet
+    }
     
     client.disconnect();
     
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('identity-update', response);
+    }
   } catch (err) {
-    log(`showStatus error: ${err.message}`);
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'NIA Status',
-      message: `Failed to get daemon status.\n\nError: ${err.message}\n\nIs the service running?`,
-      buttons: ['OK']
+    log(`Identity status error: ${err.message}`);
+  }
+}
+
+// Handle chat message
+async function handleChatMessage(message) {
+  log(`Chat: "${message.substring(0, 50)}..."`);
+  isChatInProgress = true;
+  
+  if (!IPCClient) {
+    isChatInProgress = false;
+    sendChatResponse({
+      success: false,
+      error: 'IPC not loaded',
+      response: 'Connection error. Is the daemon running?'
+    });
+    return;
+  }
+  
+  try {
+    const client = new IPCClient();
+    await client.connect();
+    const response = await client.request('chat', { message }, 60000);
+    client.disconnect();
+    
+    isChatInProgress = false;
+    sendChatResponse(response);
+    setTimeout(() => getIdentityStatus(), 500);
+  } catch (err) {
+    log(`Chat error: ${err.message}`);
+    isChatInProgress = false;
+    sendChatResponse({
+      success: false,
+      error: err.message,
+      response: err.code === 'ECONNREFUSED' 
+        ? 'Cannot connect to NIA. Is the daemon running?'
+        : 'Something went wrong. Please try again.'
     });
   }
 }
 
-// Open logs folder
-function openLogs() {
-  const { shell } = require('electron');
-  const logsPath = path.join(__dirname, 'data', 'logs');
-  log(`Opening logs: ${logsPath}`);
-  shell.openPath(logsPath);
+function sendChatResponse(data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('chat-response', data);
+  }
 }
 
-// Open settings
+// Show identity status
+async function showIdentityStatus() {
+  const { dialog } = require('electron');
+  
+  if (!IPCClient) {
+    dialog.showErrorBox('Error', 'IPC module not loaded');
+    return;
+  }
+  
+  try {
+    const client = new IPCClient();
+    await client.connect();
+    const identity = await client.request('identity_status', {});
+    
+    // Try to get full belief data
+    let beliefInfo = '';
+    try {
+      const beliefs = await client.request('beliefs', {});
+      beliefInfo = `
+Beliefs:
+  Core (strong): ${beliefs.core?.length || 0}
+  Active: ${beliefs.active?.length || 0}
+  Emerging: ${beliefs.emerging?.length || 0}`;
+    } catch (e) {
+      beliefInfo = `\nActive Beliefs: ${identity.active_beliefs || 0}`;
+    }
+    
+    client.disconnect();
+    
+    const message = `NIA's Identity
+${beliefInfo}
+
+Defining Moments:
+  ✨ Warmth (positive): ${identity.formative_scars?.positive || 0}
+  📖 Wisdom (growth): ${identity.formative_scars?.negative || 0}
+
+Mental State:
+  Energy: ${identity.cognitive_load?.fatigue || 'normal'}
+  Capacity: ${identity.cognitive_load?.budget_remaining || 100}/100
+
+Thinking Log:
+  Total thoughts: ${identity.thinking?.total || 0}
+  Unprocessed: ${identity.thinking?.unprocessed || 0}`;
+    
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'NIA Identity',
+      message: message,
+      buttons: ['OK']
+    });
+  } catch (err) {
+    dialog.showErrorBox('Error', `Failed to get identity: ${err.message}`);
+  }
+}
+
+function openLogs() {
+  const { shell } = require('electron');
+  shell.openPath(path.join(__dirname, 'data', 'logs'));
+}
+
 function openSettings() {
   const { shell } = require('electron');
-  const configPath = path.join(__dirname, 'config.json');
-  log(`Opening settings: ${configPath}`);
-  shell.openPath(configPath);
+  shell.openPath(path.join(__dirname, 'config.json'));
 }
 
 // Restart daemon
 async function restartDaemon() {
   const { dialog } = require('electron');
-  const { exec } = require('child_process');
   
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'question',
     title: 'Restart Daemon',
     message: 'Restart the NIA daemon service?',
-    buttons: ['Yes', 'No'],
-    defaultId: 0
+    buttons: ['Yes', 'No']
   });
   
   if (result.response === 0) {
-    log('Restarting daemon...');
-    exec('sc stop niaservice.exe', (err) => {
-      if (err) {
-        log(`Stop error: ${err.message}`);
-        dialog.showMessageBox(mainWindow, {
-          type: 'error',
-          title: 'Restart Failed',
-          message: `Failed to stop service.\n\nTry running as Administrator.\n\nError: ${err.message}`,
-          buttons: ['OK']
-        });
-        return;
-      }
-      
-      setTimeout(() => {
-        exec('sc start niaservice.exe', (err) => {
-          if (err) {
-            log(`Start error: ${err.message}`);
-            dialog.showMessageBox(mainWindow, {
-              type: 'error',
-              title: 'Restart Failed',
-              message: `Failed to start service.\n\nError: ${err.message}`,
-              buttons: ['OK']
-            });
-          } else {
-            log('Daemon restarted successfully');
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'Restart Successful',
-              message: 'Daemon restarted successfully!',
-              buttons: ['OK']
-            });
-          }
-        });
-      }, 3000);
-    });
+    await stopDaemonService();
+    await new Promise(r => setTimeout(r, 2000));
+    await startDaemonService();
+    setTimeout(() => checkDaemonStatus(), 3000);
   }
 }
 
-// Open chat
-function openChat() {
-  const { shell } = require('electron');
-  shell.openExternal('http://localhost:3000');
-}
-
-// Quit everything
-async function quitEverything() {
+// Show quit dialog with options
+async function showQuitDialog() {
   const { dialog } = require('electron');
-  const { exec } = require('child_process');
   
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'question',
     title: 'Quit NIA',
-    message: 'This will stop both the widget AND the daemon service.\n\nAre you sure?',
-    buttons: ['Yes, Quit Everything', 'Cancel'],
-    defaultId: 1
+    message: 'What would you like to close?',
+    buttons: ['Widget Only', 'Widget + Daemon Service', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2
   });
   
   if (result.response === 0) {
-    log('Quitting everything...');
-    
-    exec('sc stop niaservice.exe', (err) => {
-      if (err) {
-        log('Note: Could not stop service');
-      } else {
-        log('✓ Daemon service stopped');
-      }
-      app.quit();
-    });
+    // Widget only
+    log('User quit widget only - daemon continues running');
+    if (statusCheckInterval) clearInterval(statusCheckInterval);
+    app.quit();
+  } else if (result.response === 1) {
+    // Widget + service - stop status checks first to prevent errors
+    log('User quit widget + daemon service');
+    if (statusCheckInterval) clearInterval(statusCheckInterval);
+    await stopDaemonService();
+    app.quit();
   }
+  // Cancel = do nothing
+}
+
+// Create tray
+function createTray() {
+  const iconPath = path.join(__dirname, 'nia-icon.ico');
+  const icon = nativeImage.createFromPath(iconPath);
+  
+  tray = new Tray(icon);
+  tray.setToolTip('NIA - AI Companion');
+  
+  const menu = Menu.buildFromTemplate([
+    { label: '👆 Show Widget', click: () => mainWindow.show() },
+    { label: '🙈 Hide Widget', click: () => mainWindow.hide() },
+    { type: 'separator' },
+    { label: '📊 Identity Status', click: () => showIdentityStatus() },
+    { label: '🔄 Restart Daemon', click: () => restartDaemon() },
+    { type: 'separator' },
+    { label: '❌ Quit...', click: () => showQuitDialog() }
+  ]);
+  
+  tray.setContextMenu(menu);
+  tray.on('double-click', () => {
+    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+  });
+  
+  log('✓ Tray created');
+}
+
+// Status checking
+function startStatusChecking() {
+  setTimeout(() => checkDaemonStatus(), 2000);
+  setTimeout(() => getIdentityStatus(), 2500);
+  
+  statusCheckInterval = setInterval(() => {
+    if (!isChatInProgress) {
+      checkDaemonStatus();
+      getIdentityStatus();
+    }
+  }, 10000);
 }
 
 // App ready
-app.whenReady().then(() => {
-  log('=== App Ready ===');
+app.whenReady().then(async () => {
+  // First, ensure daemon is running
+  await ensureDaemonRunning();
+  
+  // Then create UI
   createWindow();
   createTray();
   startStatusChecking();
   
-  log('NIA Desktop Widget started!');
+  log('✓ NIA Widget + Chat started');
 });
 
 app.on('window-all-closed', () => {
-  // Don't quit - keep tray running
+  // Keep running in tray
 });
 
 app.on('before-quit', () => {
-  log('App quitting...');
-  if (statusCheckInterval) {
-    clearInterval(statusCheckInterval);
-  }
-  if (ipcClient) {
-    ipcClient.disconnect();
-  }
+  if (statusCheckInterval) clearInterval(statusCheckInterval);
 });

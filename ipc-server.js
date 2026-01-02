@@ -1,182 +1,136 @@
-const logger = require("./utils/logger");
-const config = require("./utils/config");
+const net = require('net');
+const logger = require('./utils/logger');
 
 /**
- * NIA V3 - IPC Server (TCP VERSION)
+ * NIA V3 - IPC Server (TCP-based)
  * 
- * Uses TCP instead of named pipes to bypass Windows service permission issues.
- * IMPORTANT: Uses serveNet() for TCP mode, not serve()!
+ * Uses TCP on localhost to avoid Windows pipe permission issues
+ * between SYSTEM service and user-level widget.
  */
 
-// Robust node-ipc import
-let ipc;
-try {
-  const nodeIPC = require("node-ipc");
-  if (nodeIPC.default && nodeIPC.default.config) {
-    ipc = nodeIPC.default;
-  } else if (nodeIPC.config) {
-    ipc = nodeIPC;
-  } else {
-    throw new Error("Could not find valid IPC interface");
-  }
-  logger.info("node-ipc imported successfully");
-} catch (err) {
-  logger.error(`Failed to import node-ipc: ${err.message}`);
-  throw err;
-}
+const IPC_PORT = 19700;
 
 class IPCServer {
   constructor(daemon) {
     this.daemon = daemon;
-    this.isRunning = false;
-    this.clientCount = 0;
+    this.clients = new Set();
+    this.handlers = new Map();
+    this.server = null;
+    this.port = IPC_PORT;
     
-    // Configure IPC
-    const allConfig = config.getAll();
-    ipc.config.id = allConfig.ipc_socket_name || 'nia-v3-ipc';
-    ipc.config.retry = 1500;
-    ipc.config.silent = true;
-    
-    // TCP settings for Windows
-    this.tcpHost = 'localhost';
-    this.tcpPort = allConfig.ipc_port || 41234;
-    this.usesTcp = (process.platform === 'win32');
-    
-    logger.info("IPCServer initialized");
-    logger.info(`IPC socket name: ${ipc.config.id}`);
-    if (this.usesTcp) {
-      logger.info(`TCP Mode: ${this.tcpHost}:${this.tcpPort}`);
-    }
+    logger.info(`IPCServer initialized (TCP port ${this.port})`);
+  }
+  
+  /**
+   * Register a custom handler for a message type
+   */
+  registerHandler(type, handler) {
+    this.handlers.set(type, handler);
+    logger.info(`Registered IPC handler: ${type}`);
   }
   
   /**
    * Start the IPC server
    */
   start() {
-    if (this.isRunning) {
-      logger.warn("IPC server already running");
-      return;
-    }
+    logger.info('Starting IPC server...');
     
-    logger.info("Starting IPC server...");
+    this.server = net.createServer((socket) => {
+      this.clients.add(socket);
+      logger.debug(`IPC client connected (${this.clients.size} total)`);
+      
+      let buffer = '';
+      
+      socket.on('data', async (data) => {
+        buffer += data.toString();
+        
+        // Process complete messages (newline-delimited JSON)
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          const messageStr = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          
+          try {
+            const message = JSON.parse(messageStr);
+            await this._handleMessage(message, socket);
+          } catch (err) {
+            logger.error(`Failed to parse IPC message: ${err.message}`);
+          }
+        }
+      });
+      
+      socket.on('close', () => {
+        this.clients.delete(socket);
+        logger.debug(`IPC client disconnected (${this.clients.size} total)`);
+      });
+      
+      socket.on('error', (err) => {
+        logger.error(`Socket error: ${err.message}`);
+        this.clients.delete(socket);
+      });
+    });
+    
+    this.server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(`Port ${this.port} already in use - another daemon running?`);
+      } else {
+        logger.error(`Server error: ${err.message}`);
+      }
+    });
+    
+    this.server.listen(this.port, '127.0.0.1', () => {
+      logger.info(`IPC server listening on 127.0.0.1:${this.port}`);
+    });
+  }
+  
+  /**
+   * Handle incoming message
+   */
+  async _handleMessage(message, socket) {
+    const { id, type, payload } = message;
+    
+    logger.debug(`IPC request: ${type} (id: ${id})`);
     
     try {
-      // Define the callback for when server is ready
-      const serverCallback = () => {
-        logger.info("IPC server callback fired - registering handlers...");
-        
-        // Event: Client connected
-        ipc.server.on("connect", (socket) => {
-          this.clientCount++;
-          logger.info(`IPC client connected (total: ${this.clientCount})`);
-        });
-        
-        // Event: Client disconnected
-        ipc.server.on("socket.disconnected", (socket, destroyedSocketID) => {
-          this.clientCount--;
-          logger.info(`IPC client disconnected (total: ${this.clientCount})`);
-        });
-        
-        // Command: ping
-        ipc.server.on("ping", (data, socket) => {
-          logger.info("IPC: Received PING command");
-          ipc.server.emit(socket, "pong", {
-            success: true,
-            timestamp: new Date().toISOString()
-          });
-        });
-        
-        // Command: status
-        ipc.server.on("status", (data, socket) => {
-          logger.info("IPC: Received STATUS command");
-          try {
-            const status = this.daemon.getStatus();
-            ipc.server.emit(socket, "status-response", {
-              success: true,
-              data: status
-            });
-          } catch (err) {
-            logger.error(`IPC: Status error: ${err.message}`);
-            ipc.server.emit(socket, "status-response", {
-              success: false,
-              error: err.message
-            });
-          }
-        });
-        
-        // Command: get-health
-        ipc.server.on("get-health", (data, socket) => {
-          logger.info("IPC: Received GET-HEALTH command");
-          try {
-            const health = this.daemon._performHealthCheck();
-            ipc.server.emit(socket, "get-health-response", {
-              success: true,
-              data: health
-            });
-          } catch (err) {
-            logger.error(`IPC: Health error: ${err.message}`);
-            ipc.server.emit(socket, "get-health-response", {
-              success: false,
-              error: err.message
-            });
-          }
-        });
-        
-        // Command: get-config
-        ipc.server.on("get-config", (data, socket) => {
-          logger.info("IPC: Received GET-CONFIG command");
-          try {
-            const allConfig = config.getAll();
-            ipc.server.emit(socket, "get-config-response", {
-              success: true,
-              data: allConfig
-            });
-          } catch (err) {
-            logger.error(`IPC: Config error: ${err.message}`);
-            ipc.server.emit(socket, "get-config-response", {
-              success: false,
-              error: err.message
-            });
-          }
-        });
-        
-        // Command: shutdown
-        ipc.server.on("shutdown", (data, socket) => {
-          logger.info("IPC: Received SHUTDOWN command");
-          ipc.server.emit(socket, "shutdown-response", {
-            success: true,
-            message: "Daemon shutting down..."
-          });
-          setTimeout(() => {
-            this.daemon.stop();
-          }, 500);
-        });
-        
-        logger.info("IPC server handlers registered");
-      };
+      let response;
       
-      // Use TCP mode on Windows, Unix sockets otherwise
-      if (this.usesTcp) {
-        logger.info(`Starting TCP server on ${this.tcpHost}:${this.tcpPort}...`);
-        ipc.serveNet(this.tcpHost, this.tcpPort, serverCallback);
+      // Check for registered handler
+      if (this.handlers.has(type)) {
+        const handler = this.handlers.get(type);
+        response = await handler(payload || {});
       } else {
-        logger.info("Starting Unix socket server...");
-        ipc.serve(serverCallback);
+        // Built-in handlers
+        switch (type) {
+          case 'status':
+            response = this.daemon.getStatus();
+            break;
+          case 'health':
+            response = this.daemon.getHealth ? this.daemon.getHealth() : { status: 'ok' };
+            break;
+          case 'ping':
+            response = { pong: Date.now() };
+            break;
+          default:
+            response = { error: `Unknown request type: ${type}` };
+        }
       }
       
-      ipc.server.start();
-      this.isRunning = true;
-      
-      logger.info(`✓ IPC server started successfully!`);
-      logger.info(`✓ Socket ID: ${ipc.config.id}`);
-      if (this.usesTcp) {
-        logger.info(`✓ Listening on TCP ${this.tcpHost}:${this.tcpPort}`);
-      }
+      this._send(socket, { id, success: true, data: response });
       
     } catch (err) {
-      logger.error(`Failed to start IPC server: ${err.message}`);
-      logger.error(err.stack);
-      throw err;
+      logger.error(`IPC request error (${type}): ${err.message}`);
+      this._send(socket, { id, success: false, error: err.message });
+    }
+  }
+  
+  /**
+   * Send message to socket
+   */
+  _send(socket, data) {
+    try {
+      socket.write(JSON.stringify(data) + '\n');
+    } catch (err) {
+      logger.error(`Failed to send: ${err.message}`);
     }
   }
   
@@ -184,27 +138,46 @@ class IPCServer {
    * Stop the IPC server
    */
   stop() {
-    if (!this.isRunning) {
-      logger.warn("IPC server not running");
-      return;
+    logger.info('Stopping IPC server...');
+    
+    // Close all client connections
+    for (const socket of this.clients) {
+      try {
+        socket.end();
+      } catch (e) {
+        // Ignore
+      }
+    }
+    this.clients.clear();
+    
+    // Close server
+    if (this.server) {
+      this.server.close();
+      this.server = null;
     }
     
-    logger.info("Stopping IPC server...");
-    
-    try {
-      ipc.server.stop();
-      this.isRunning = false;
-      logger.info("IPC server stopped");
-    } catch (err) {
-      logger.error(`Error stopping IPC server: ${err.message}`);
-    }
+    logger.info('IPC server stopped');
   }
   
   /**
-   * Get current connection count
+   * Get connected client count
    */
   getClientCount() {
-    return this.clientCount;
+    return this.clients.size;
+  }
+  
+  /**
+   * Broadcast message to all clients
+   */
+  broadcast(event, data) {
+    const message = JSON.stringify({ event, data }) + '\n';
+    for (const socket of this.clients) {
+      try {
+        socket.write(message);
+      } catch (e) {
+        logger.error(`Broadcast error: ${e.message}`);
+      }
+    }
   }
 }
 

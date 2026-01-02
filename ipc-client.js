@@ -1,108 +1,104 @@
-const config = require("./utils/config");
+const net = require('net');
 
 /**
- * NIA V3 - IPC Client (TCP VERSION)
+ * NIA V3 - IPC Client (TCP-based)
  * 
- * Uses TCP instead of named pipes to match the server.
- * This bypasses Windows service permission issues.
+ * Uses TCP on localhost to communicate with daemon.
  */
 
-// Robust node-ipc import
-let ipc;
-try {
-  const nodeIPC = require("node-ipc");
-  if (nodeIPC.default && nodeIPC.default.config) {
-    ipc = nodeIPC.default;
-  } else if (nodeIPC.config) {
-    ipc = nodeIPC;
-  } else {
-    throw new Error("Could not find valid IPC interface");
-  }
-} catch (err) {
-  console.error(`Failed to import node-ipc: ${err.message}`);
-  throw err;
-}
+const IPC_PORT = 19700;
 
 class IPCClient {
   constructor() {
+    this.port = IPC_PORT;
+    this.host = '127.0.0.1';
+    this.socket = null;
     this.isConnected = false;
-    this.connectionPromise = null;
-    
-    // Configure IPC
-    const allConfig = config.getAll();
-    ipc.config.id = "nia-client-" + Date.now();
-    ipc.config.retry = allConfig.ipc_retry_delay || 1000;
-    ipc.config.maxRetries = allConfig.ipc_retry_attempts || 5;
-    ipc.config.silent = true;
-    
-    this.serverId = allConfig.ipc_socket_name || 'nia-v3-ipc';
-    
-    // WINDOWS TCP MODE: Must match server settings!
-    if (process.platform === 'win32') {
-      this.tcpHost = 'localhost';
-      this.tcpPort = allConfig.ipc_port || 41234;
-      console.log(`[IPCClient] Using TCP mode: ${this.tcpHost}:${this.tcpPort}`);
-    }
+    this.pendingRequests = new Map();
+    this.requestCounter = 0;
+    this.buffer = '';
   }
   
   /**
    * Connect to the daemon
    */
-  connect() {
-    if (this.isConnected) {
-      return Promise.resolve();
-    }
-    
-    if (this.connectionPromise) {
-      return this.connectionPromise;
-    }
-    
-    this.connectionPromise = new Promise((resolve, reject) => {
-      // Use TCP connection on Windows
-      if (process.platform === 'win32') {
-        ipc.connectToNet(this.serverId, this.tcpHost, this.tcpPort, () => {
-          ipc.of[this.serverId].on("connect", () => {
-            this.isConnected = true;
-            resolve();
-          });
-          
-          ipc.of[this.serverId].on("disconnect", () => {
-            this.isConnected = false;
-          });
-          
-          ipc.of[this.serverId].on("error", (err) => {
-            this.isConnected = false;
-            reject(new Error(`IPC connection error: ${err.message || err}`));
-          });
-        });
-      } else {
-        // Unix socket for non-Windows
-        ipc.connectTo(this.serverId, () => {
-          ipc.of[this.serverId].on("connect", () => {
-            this.isConnected = true;
-            resolve();
-          });
-          
-          ipc.of[this.serverId].on("disconnect", () => {
-            this.isConnected = false;
-          });
-          
-          ipc.of[this.serverId].on("error", (err) => {
-            this.isConnected = false;
-            reject(new Error(`IPC connection error: ${err.message || err}`));
-          });
-        });
+  connect(timeout = 5000) {
+    return new Promise((resolve, reject) => {
+      if (this.isConnected) {
+        resolve();
+        return;
       }
       
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (!this.isConnected) {
-          reject(new Error("IPC connection timeout"));
+      const timer = setTimeout(() => {
+        if (this.socket) {
+          this.socket.destroy();
         }
-      }, 5000);
+        reject(new Error('Connection timeout'));
+      }, timeout);
+      
+      this.socket = net.createConnection({ port: this.port, host: this.host }, () => {
+        clearTimeout(timer);
+        this.isConnected = true;
+        this._setupDataHandler();
+        resolve();
+      });
+      
+      this.socket.on('error', (err) => {
+        clearTimeout(timer);
+        this.isConnected = false;
+        reject(err);
+      });
+      
+      this.socket.on('close', () => {
+        this.isConnected = false;
+        // Reject any pending requests
+        for (const [id, pending] of this.pendingRequests) {
+          pending.reject(new Error('Connection closed'));
+        }
+        this.pendingRequests.clear();
+      });
     });
+  }
+  
+  /**
+   * Set up handler for incoming data
+   */
+  _setupDataHandler() {
+    this.socket.on('data', (data) => {
+      this.buffer += data.toString();
+      
+      // Process complete messages (newline-delimited JSON)
+      let newlineIndex;
+      while ((newlineIndex = this.buffer.indexOf('\n')) !== -1) {
+        const messageStr = this.buffer.slice(0, newlineIndex);
+        this.buffer = this.buffer.slice(newlineIndex + 1);
+        
+        try {
+          const message = JSON.parse(messageStr);
+          this._handleResponse(message);
+        } catch (err) {
+          console.error('Failed to parse response:', err.message);
+        }
+      }
+    });
+  }
+  
+  /**
+   * Handle response from server
+   */
+  _handleResponse(message) {
+    const { id, success, data, error } = message;
     
-    return this.connectionPromise;
+    const pending = this.pendingRequests.get(id);
+    if (pending) {
+      this.pendingRequests.delete(id);
+      
+      if (success) {
+        pending.resolve(data);
+      } else {
+        pending.reject(new Error(error || 'Request failed'));
+      }
+    }
   }
   
   /**
@@ -111,96 +107,98 @@ class IPCClient {
   disconnect() {
     if (!this.isConnected) return;
     
-    try {
-      ipc.disconnect(this.serverId);
-    } catch (err) {
-      // Ignore disconnect errors
+    if (this.socket) {
+      this.socket.end();
+      this.socket = null;
     }
     this.isConnected = false;
-    this.connectionPromise = null;
-  }
-  
-  /**
-   * Send a command and wait for response
-   */
-  _sendCommand(command, data = {}) {
-    return new Promise((resolve, reject) => {
-      if (!this.isConnected) {
-        return reject(new Error("Not connected to daemon"));
-      }
-      
-      const responseEvent = `${command}-response`;
-      
-      ipc.of[this.serverId].once(responseEvent, (response) => {
-        if (response.success) {
-          resolve(response);
-        } else {
-          reject(new Error(response.error || "Command failed"));
-        }
-      });
-      
-      ipc.of[this.serverId].emit(command, data);
-      
-      setTimeout(() => {
-        reject(new Error("Command timeout"));
-      }, 3000);
-    });
-  }
-  
-  /**
-   * Ping the daemon
-   */
-  async ping() {
-    await this.connect();
-    
-    return new Promise((resolve, reject) => {
-      ipc.of[this.serverId].once("pong", (response) => {
-        resolve(response);
-      });
-      
-      ipc.of[this.serverId].emit("ping", {});
-      
-      setTimeout(() => {
-        reject(new Error("Ping timeout"));
-      }, 3000);
-    });
+    this.pendingRequests.clear();
+    this.buffer = '';
   }
   
   /**
    * Get daemon status
    */
-  async getStatus() {
-    await this.connect();
-    const response = await this._sendCommand("status");
-    return response.data;
+  getStatus() {
+    return this.request('status', {});
   }
   
   /**
-   * Get daemon health info
+   * Get daemon health
    */
-  async getHealth() {
-    await this.connect();
-    const response = await this._sendCommand("get-health");
-    return response.data;
+  getHealth() {
+    return this.request('health', {});
   }
   
   /**
-   * Get daemon configuration
+   * Send a custom request
    */
-  async getConfig() {
-    await this.connect();
-    const response = await this._sendCommand("get-config");
-    return response.data;
+  request(type, payload, timeout = 30000) {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected) {
+        reject(new Error('Not connected'));
+        return;
+      }
+      
+      const id = `req-${++this.requestCounter}-${Date.now()}`;
+      
+      // Set up timeout
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`Request timeout: ${type}`));
+      }, timeout);
+      
+      // Store pending request
+      this.pendingRequests.set(id, {
+        resolve: (data) => {
+          clearTimeout(timer);
+          resolve(data);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+      
+      // Send request
+      const message = JSON.stringify({ id, type, payload }) + '\n';
+      this.socket.write(message);
+    });
   }
   
   /**
-   * Shutdown the daemon
+   * Send chat message
    */
-  async shutdown() {
-    await this.connect();
-    const response = await this._sendCommand("shutdown");
-    this.disconnect();
-    return response;
+  chat(message, context = {}) {
+    return this.request('chat', { message, context }, 60000); // 60s timeout for LLM
+  }
+  
+  /**
+   * Get identity status
+   */
+  getIdentityStatus() {
+    return this.request('identity_status', {});
+  }
+  
+  /**
+   * Check if action is allowed
+   */
+  checkAction(domain, action) {
+    return this.request('check_action', { domain, action });
+  }
+  
+  /**
+   * Get identity context
+   */
+  getIdentityContext() {
+    return this.request('identity_context', {});
+  }
+  
+  /**
+   * Ping the daemon
+   */
+  ping() {
+    return this.request('ping', {}, 5000);
   }
 }
 

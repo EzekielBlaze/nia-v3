@@ -199,6 +199,24 @@ function setupIpcHandlers() {
   ipcMain.on('chat-message', async (event, data) => {
     await handleChatMessage(data.message);
   });
+  
+  // Handle debug commands - route to daemon via IPCClient
+  ipcMain.handle('send-command', async (event, command, data = {}) => {
+    if (!IPCClient) {
+      throw new Error('IPC client not loaded');
+    }
+    
+    try {
+      const client = new IPCClient();
+      await client.connect();
+      const response = await client.request(command, data);
+      client.disconnect();
+      return response;
+    } catch (err) {
+      log(`Command '${command}' error: ${err.message}`);
+      throw err;
+    }
+  });
 }
 
 // Check daemon status

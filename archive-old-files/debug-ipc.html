@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NIA Debug - IPC Check</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background: #1a1a1a;
+      color: #00ff00;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .section {
+      border: 1px solid #00ff00;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 5px;
+    }
+    .good { color: #00ff00; }
+    .bad { color: #ff0000; }
+    .warning { color: #ffaa00; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px;
+      border-radius: 3px;
+    }
+    button:hover {
+      background: #00dd00;
+    }
+    pre {
+      background: #000;
+      padding: 10px;
+      overflow: auto;
+      max-height: 400px;
+      border: 1px solid #333;
+      border-radius: 3px;
+    }
+    .status-line {
+      padding: 5px;
+      margin: 5px 0;
+      border-left: 3px solid #00ff00;
+      padding-left: 10px;
+    }
+    h1 { color: #00ff00; border-bottom: 2px solid #00ff00; padding-bottom: 10px; }
+    h2 { color: #00ff00; }
+  </style>
+</head>
+<body>
+  <h1>🔍 NIA V3 DEBUG - IPC Direct Test</h1>
+  
+  <div class="section">
+    <h2>Connection Info</h2>
+    <div class="status-line">Protocol: <strong>TCP</strong></div>
+    <div class="status-line">Port: <strong>19700</strong></div>
+    <div class="status-line">Host: <strong>127.0.0.1</strong></div>
+  </div>
+
+  <div class="section">
+    <h2>1. Test IPC Connection</h2>
+    <button onclick="testConnection()">Test Connection</button>
+    <div id="connection-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>2. Get Identity Status</h2>
+    <button onclick="getIdentityStatus()">Get Identity Status</button>
+    <div id="identity-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>3. Get Beliefs</h2>
+    <button onclick="getBeliefs()">Get Beliefs</button>
+    <div id="beliefs-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>4. Get Scars</h2>
+    <button onclick="getScars()">Get Scars</button>
+    <div id="scars-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>5. Full Diagnostic</h2>
+    <button onclick="runFullDiagnostic()">Run Full Diagnostic</button>
+    <div id="diagnostic-result"></div>
+  </div>
+
+  <script>
+    const IPCClient = require('./ipc-client');
+    
+    async function testConnection() {
+      const result = document.getElementById('connection-result');
+      result.innerHTML = '<p class="warning">Connecting to daemon on port 19700...</p>';
+      
+      try {
+        const client = new IPCClient();
+        await client.connect(3000);
+        
+        result.innerHTML = '<p class="good">✓ Connection successful!</p>';
+        client.disconnect();
+      } catch (err) {
+        result.innerHTML = `
+          <p class="bad">✗ Connection failed: ${err.message}</p>
+          <p class="warning">Is the daemon running?</p>
+          <p>Try: <code>sc query niaservice.exe</code></p>
+        `;
+      }
+    }
+    
+    async function getIdentityStatus() {
+      const result = document.getElementById('identity-result');
+      result.innerHTML = '<p class="warning">Requesting identity status...</p>';
+      
+      try {
+        const client = new IPCClient();
+        await client.connect();
+        
+        const data = await client.request('identity_status', {});
+        client.disconnect();
+        
+        result.innerHTML = `
+          <h3 class="good">✓ Identity Status Received</h3>
+          
+          <div class="status-line">
+            <strong>Active Beliefs:</strong> ${data.active_beliefs || 0}
+          </div>
+          <div class="status-line">
+            <strong>Formative Scars (Total):</strong> ${data.formative_scars?.total || 0}
+          </div>
+          <div class="status-line">
+            <strong>Formative Scars (Positive):</strong> ${data.formative_scars?.positive || 0}
+          </div>
+          <div class="status-line">
+            <strong>Formative Scars (Negative):</strong> ${data.formative_scars?.negative || 0}
+          </div>
+          
+          <h4>Beliefs Breakdown:</h4>
+          <pre>${JSON.stringify(data.beliefs, null, 2)}</pre>
+          
+          <h4>Full Response:</h4>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+        
+      } catch (err) {
+        result.innerHTML = `<p class="bad">✗ Error: ${err.message}</p>`;
+      }
+    }
+    
+    async function getBeliefs() {
+      const result = document.getElementById('beliefs-result');
+      result.innerHTML = '<p class="warning">Requesting beliefs...</p>';
+      
+      try {
+        const client = new IPCClient();
+        await client.connect();
+        
+        const data = await client.request('beliefs', {});
+        client.disconnect();
+        
+        const allBeliefs = [
+          ...(data.core || []).map(b => ({ ...b, tier: 'CORE' })),
+          ...(data.active || []).map(b => ({ ...b, tier: 'ACTIVE' })),
+          ...(data.emerging || []).map(b => ({ ...b, tier: 'EMERGING' }))
+        ];
+        
+        result.innerHTML = `
+          <h3 class="good">✓ Beliefs Received</h3>
+          
+          <div class="status-line">Total: <strong>${data.total || 0}</strong></div>
+          <div class="status-line">Core: <strong>${data.core?.length || 0}</strong></div>
+          <div class="status-line">Active: <strong>${data.active?.length || 0}</strong></div>
+          <div class="status-line">Emerging: <strong>${data.emerging?.length || 0}</strong></div>
+          
+          <h4>Belief List:</h4>
+          <pre>${allBeliefs.map(b => 
+            `[${b.tier}] ${b.conviction_score?.toFixed(0) || '??'}% - ${b.belief_statement || 'N/A'}`
+          ).join('\n')}</pre>
+          
+          <h4>Full Response:</h4>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+        
+      } catch (err) {
+        result.innerHTML = `<p class="bad">✗ Error: ${err.message}</p>`;
+      }
+    }
+    
+    async function getScars() {
+      const result = document.getElementById('scars-result');
+      result.innerHTML = '<p class="warning">Requesting scars...</p>';
+      
+      try {
+        const client = new IPCClient();
+        await client.connect();
+        
+        const data = await client.request('scars', {});
+        client.disconnect();
+        
+        result.innerHTML = `
+          <h3 class="good">✓ Scars Received</h3>
+          
+          <div class="status-line">Total: <strong>${data.total || 0}</strong></div>
+          <div class="status-line">Positive: <strong>${data.positive?.length || 0}</strong></div>
+          <div class="status-line">Negative: <strong>${data.negative?.length || 0}</strong></div>
+          
+          <h4>Positive Scars:</h4>
+          <pre>${(data.positive || []).map(s => 
+            `[${s.emotional_valence?.toFixed(2) || '?'}] ${s.scar_description || 'N/A'}`
+          ).join('\n') || 'None'}</pre>
+          
+          <h4>Negative Scars:</h4>
+          <pre>${(data.negative || []).map(s => 
+            `[${s.emotional_valence?.toFixed(2) || '?'}] ${s.scar_description || 'N/A'}`
+          ).join('\n') || 'None'}</pre>
+          
+          <h4>Full Response:</h4>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+        
+      } catch (err) {
+        result.innerHTML = `<p class="bad">✗ Error: ${err.message}</p>`;
+      }
+    }
+    
+    async function runFullDiagnostic() {
+      const result = document.getElementById('diagnostic-result');
+      result.innerHTML = '<h3 class="warning">Running full diagnostic...</h3>';
+      
+      const report = {
+        connection: null,
+        identity_status: null,
+        beliefs: null,
+        scars: null,
+        errors: []
+      };
+      
+      // Test 1: Connection
+      try {
+        const client = new IPCClient();
+        await client.connect(3000);
+        report.connection = '✓ Connected to daemon on port 19700';
+        client.disconnect();
+      } catch (err) {
+        report.connection = `✗ Connection failed: ${err.message}`;
+        report.errors.push('Daemon may not be running');
+      }
+      
+      // Test 2: Identity Status
+      if (report.connection.startsWith('✓')) {
+        try {
+          const client = new IPCClient();
+          await client.connect();
+          const data = await client.request('identity_status', {});
+          client.disconnect();
+          
+          report.identity_status = {
+            beliefs: data.active_beliefs || 0,
+            scars_total: data.formative_scars?.total || 0,
+            scars_positive: data.formative_scars?.positive || 0,
+            scars_negative: data.formative_scars?.negative || 0
+          };
+          
+          if (data.active_beliefs === 0) {
+            report.errors.push('⚠️ Daemon returns 0 beliefs - database or processor issue');
+          }
+        } catch (err) {
+          report.errors.push(`Identity status failed: ${err.message}`);
+        }
+      }
+      
+      // Test 3: Beliefs
+      if (report.connection.startsWith('✓')) {
+        try {
+          const client = new IPCClient();
+          await client.connect();
+          const data = await client.request('beliefs', {});
+          client.disconnect();
+          
+          report.beliefs = {
+            total: data.total || 0,
+            core: data.core?.length || 0,
+            active: data.active?.length || 0,
+            emerging: data.emerging?.length || 0
+          };
+          
+          if (data.total === 0) {
+            report.errors.push('⚠️ Beliefs handler returns 0 - BeliefProcessor issue');
+          }
+        } catch (err) {
+          report.errors.push(`Beliefs request failed: ${err.message}`);
+        }
+      }
+      
+      // Test 4: Scars
+      if (report.connection.startsWith('✓')) {
+        try {
+          const client = new IPCClient();
+          await client.connect();
+          const data = await client.request('scars', {});
+          client.disconnect();
+          
+          report.scars = {
+            total: data.total || 0,
+            positive: data.positive?.length || 0,
+            negative: data.negative?.length || 0
+          };
+          
+          if (data.total === 0) {
+            report.errors.push('⚠️ Scars handler returns 0 - ScarProcessor issue');
+          }
+        } catch (err) {
+          report.errors.push(`Scars request failed: ${err.message}`);
+        }
+      }
+      
+      // Generate report
+      result.innerHTML = `
+        <h3>📊 Diagnostic Report</h3>
+        
+        <h4 ${report.connection?.startsWith('✓') ? 'class="good"' : 'class="bad"'}>
+          Connection: ${report.connection || 'Not tested'}
+        </h4>
+        
+        ${report.identity_status ? `
+          <h4>Identity Status Response:</h4>
+          <div class="status-line">Beliefs: <strong class="${report.identity_status.beliefs > 0 ? 'good' : 'bad'}">${report.identity_status.beliefs}</strong></div>
+          <div class="status-line">Scars: <strong class="${report.identity_status.scars_total > 0 ? 'good' : 'bad'}">${report.identity_status.scars_total}</strong></div>
+        ` : ''}
+        
+        ${report.beliefs ? `
+          <h4>Beliefs Handler Response:</h4>
+          <div class="status-line">Total: <strong class="${report.beliefs.total > 0 ? 'good' : 'bad'}">${report.beliefs.total}</strong></div>
+          <div class="status-line">Core: ${report.beliefs.core}</div>
+          <div class="status-line">Active: ${report.beliefs.active}</div>
+          <div class="status-line">Emerging: ${report.beliefs.emerging}</div>
+        ` : ''}
+        
+        ${report.scars ? `
+          <h4>Scars Handler Response:</h4>
+          <div class="status-line">Total: <strong class="${report.scars.total > 0 ? 'good' : 'bad'}">${report.scars.total}</strong></div>
+          <div class="status-line">Positive: ${report.scars.positive}</div>
+          <div class="status-line">Negative: ${report.scars.negative}</div>
+        ` : ''}
+        
+        ${report.errors.length > 0 ? `
+          <h4 class="bad">⚠️ Issues Found:</h4>
+          ${report.errors.map(e => `<div class="status-line bad">${e}</div>`).join('')}
+        ` : '<h4 class="good">✓ All tests passed!</h4>'}
+        
+        <h4>Full Report:</h4>
+        <pre>${JSON.stringify(report, null, 2)}</pre>
+      `;
+    }
+    
+    // Auto-run on load
+    setTimeout(() => {
+      runFullDiagnostic();
+    }, 500);
+  </script>
+</body>
+</html>

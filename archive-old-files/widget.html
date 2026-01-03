@@ -22,7 +22,7 @@
         #container {
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Default: Amber (happy) */
             border-radius: 20px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.4);
             display: flex;
@@ -33,11 +33,28 @@
             position: relative;
             cursor: move;
             -webkit-app-region: drag;
-            transition: background 0.3s ease;
+            transition: background 1s ease; /* Smooth color transitions */
+        }
+        
+        /* Emotional state colors */
+        #container.state-normal {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Amber - happy/content */
+        }
+        
+        #container.state-tired {
+            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); /* Blue - tired */
+        }
+        
+        #container.state-overwhelmed {
+            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); /* Red - overwhelmed */
+        }
+        
+        #container.state-critically_low {
+            background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%); /* Dark red - exhausted */
         }
         
         #container.offline {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%); /* Gray - offline */
         }
         
         #avatar {
@@ -132,6 +149,9 @@
         </div>
         <div id="name">NIA</div>
         <div id="status">Connecting...</div>
+        <div id="energyBar" style="width: 100px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+            <div id="energyFill" style="height: 100%; background: rgba(255,255,255,0.9); width: 100%; transition: width 0.5s ease;"></div>
+        </div>
     </div>
     
     <script>
@@ -139,12 +159,35 @@
         
         const container = document.getElementById('container');
         const statusEl = document.getElementById('status');
+        const energyFill = document.getElementById('energyFill');
         
         let updateCount = 0;
         
         // Show menu when button clicked
         function showMenu() {
             ipcRenderer.send('show-menu');
+        }
+        
+        // Update cognitive state and colors
+        async function updateCognitiveState() {
+            try {
+                const state = await ipcRenderer.invoke('send-command', 'cognitive_state');
+                
+                if (state && state.available) {
+                    // Update container color
+                    container.className = ''; // Clear all classes
+                    container.classList.add(`state-${state.state}`);
+                    
+                    // Update energy bar
+                    if (energyFill) {
+                        energyFill.style.width = `${state.energy}%`;
+                    }
+                    
+                    console.log(`[Cognitive] State: ${state.state}, Energy: ${state.energy}%`);
+                }
+            } catch (err) {
+                console.error('[Cognitive] Failed to update state:', err);
+            }
         }
         
         // Listen for status updates from main process
@@ -160,7 +203,9 @@
                     statusEl.textContent = 'Running ✔';
                 }
                 container.classList.add('pulse');
-                container.classList.remove('offline');
+                
+                // Update cognitive state when online
+                updateCognitiveState();
             } else {
                 // Daemon is offline - show error
                 let errorMsg = 'Offline';
@@ -179,13 +224,23 @@
                 }
                 statusEl.textContent = errorMsg;
                 container.classList.remove('pulse');
-                container.classList.add('offline');
+                container.className = 'offline';
             }
         });
+        
+        // Periodic cognitive state updates (every 10 seconds)
+        setInterval(() => {
+            updateCognitiveState();
+        }, 10000);
         
         // Request initial status
         console.log('[Renderer] Requesting initial status...');
         ipcRenderer.send('request-status');
+        
+        // Initial cognitive state check
+        setTimeout(() => {
+            updateCognitiveState();
+        }, 1000);
         
         // Prevent text selection during drag
         document.addEventListener('selectstart', (e) => {

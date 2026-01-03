@@ -116,7 +116,7 @@ class NiaDaemon {
     }
     
     try {
-      const IdentityQuery = require("./core/query/identity-query");
+      const IdentityQuery = require("./identity-query");
       this.identity = new IdentityQuery();
       this.identity.init(this.identityDbPath);
       
@@ -500,59 +500,15 @@ class NiaDaemon {
         this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryLength);
       }
       
-      // 4. Call LLM with retry logic for malformed responses
-      let rawResponse = null;
-      let extractedData = null;
-      let retryCount = 0;
-      const maxRetries = 2;
+      // 4. Call LLM
+      const rawResponse = await this._callLLM(systemPrompt, this.conversationHistory);
       
-      while (retryCount <= maxRetries) {
-        rawResponse = await this._callLLM(systemPrompt, this.conversationHistory);
-        
-        // 5. Extract and validate thinking
-        extractedData = this._extractThinking(rawResponse);
-        
-        // If well-formed or out of retries, accept it
-        if (extractedData.wellFormed || retryCount === maxRetries) {
-          break;
-        }
-        
-        // Malformed - request reformat
-        retryCount++;
-        logger.warn(`Response malformed (attempt ${retryCount}/${maxRetries}), requesting reformat...`);
-        
-        // Add correction request to conversation
-        this.conversationHistory.push({
-          role: "assistant",
-          content: rawResponse
-        });
-        this.conversationHistory.push({
-          role: "user",
-          content: "Please reformat your response: put ALL internal thinking inside <think></think> tags, and ONLY the response to me outside the tags. Do not use *thinks* or show [Talking to: ...] in your response."
-        });
-      }
+      // 5. Extract thinking if present
+      const { thinking, cleanResponse } = this._extractThinking(rawResponse);
       
-      const { thinking, cleanResponse, wellFormed, hadThinking } = extractedData;
-      
-      // Log if we had to retry
-      if (retryCount > 0) {
-        if (wellFormed) {
-          logger.info(`Response reformatted successfully after ${retryCount} ${retryCount === 1 ? 'retry' : 'retries'}`);
-        } else {
-          logger.error(`Response still malformed after ${maxRetries} retries - using anyway`);
-        }
-      }
-      
-      // 6. Save thinking to log if present AND well-formed
-      // NO GUILT DELETE: Don't extract beliefs from malformed responses
-      if (thinking && wellFormed) {
+      // 6. Save thinking to log if present
+      if (thinking) {
         await this._saveThinking(userMessage, thinking, cleanResponse);
-      } else if (thinking && !wellFormed) {
-        logger.warn(`Skipping belief extraction for malformed thinking (no-guilt delete)`);
-        // Still save for debugging but mark as malformed
-        await this._saveThinking(userMessage, `[MALFORMED]\n${thinking}`, cleanResponse);
-      } else if (!hadThinking) {
-        logger.warn(`No thinking content in response - LLM may not be following prompt`);
       }
       
       // 7. Add assistant response to history
@@ -589,124 +545,60 @@ class NiaDaemon {
   /**
    * Extract thinking from LLM response
    */
-  /**
-   * Smart extraction - handles proper AND malformed thinking
-   * Future-proof against various formats
-   */
   _extractThinking(response) {
-    let thinking = null;
-    let cleanResponse = response;
-    let wellFormed = false;
+    // Match <think>...</think> tags (case insensitive, multiline)
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
+    const matches = response.match(thinkRegex);
     
-    // 1. Try to extract proper <think>...</think> tags
-    const properThinkRegex = /<think>([\s\S]*?)<\/think>/gi;
-    const properMatches = response.match(properThinkRegex);
-    
-    if (properMatches && properMatches.length > 0) {
-      // Extract thinking content
-      thinking = "";
-      for (const match of properMatches) {
-        const content = match.replace(/<\/?think>/gi, "").trim();
-        if (content) {
-          thinking += (thinking ? "\n\n" : "") + content;
-        }
-      }
-      
-      // Remove thinking tags from response
-      cleanResponse = response.replace(properThinkRegex, "").trim();
-      wellFormed = true;
-      
-      logger.debug(`Extracted well-formed thinking: ${thinking.length} chars`);
+    if (!matches || matches.length === 0) {
+      return { thinking: null, cleanResponse: response };
     }
     
-    // 2. Check for malformed thinking (emote + content without proper tags)
-    // Example: "*thinks* [Talking to: Blaze] ... </think>"
-    const malformedPattern = /\*thinks?\*[\s\S]*?<\/think>/gi;
-    const malformedMatches = cleanResponse.match(malformedPattern);
-    
-    if (malformedMatches) {
-      logger.warn(`Found malformed thinking tags - will request reformat`);
-      // Extract it anyway but mark as malformed
-      if (!thinking) thinking = "";
-      for (const match of malformedMatches) {
-        thinking += (thinking ? "\n\n" : "") + match.replace(/<\/think>/gi, "").replace(/\*thinks?\*/gi, "").trim();
-      }
-      cleanResponse = cleanResponse.replace(malformedPattern, "").trim();
-      wellFormed = false;
-    }
-    
-    // 3. Strip leaked internal markers that should never reach user
-    const leakagePatterns = [
-      /\[Talking to:.*?\]/gi,           // Subject tracking
-      /\[CONTEXT:.*?\]/gi,               // Context markers
-      /\*thinks\*/gi,                    // Emote version
-      /<\/?think>/gi,                    // Orphaned tags
-      /\[Internal:.*?\]/gi               // Any internal markers
-    ];
-    
-    for (const pattern of leakagePatterns) {
-      const hadLeakage = pattern.test(cleanResponse);
-      cleanResponse = cleanResponse.replace(pattern, "").trim();
-      if (hadLeakage) {
-        logger.warn(`Stripped leaked internal marker from response`);
-        wellFormed = false;
+    // Extract all thinking content
+    let thinking = "";
+    for (const match of matches) {
+      const content = match.replace(/<\/?think>/gi, "").trim();
+      if (content) {
+        thinking += (thinking ? "\n\n" : "") + content;
       }
     }
     
-    // 4. Final cleanup - remove extra whitespace
-    cleanResponse = cleanResponse.replace(/\n{3,}/g, "\n\n").trim();
+    // Remove thinking tags from response
+    const cleanResponse = response.replace(thinkRegex, "").trim();
     
-    // 5. Validate response has actual content
-    if (cleanResponse.length < 5) {
-      logger.error(`Response too short after cleaning: "${cleanResponse}"`);
-      wellFormed = false;
-    }
+    logger.debug(`Extracted thinking: ${thinking.length} chars`);
     
-    return { 
-      thinking, 
-      cleanResponse, 
-      wellFormed,
-      hadThinking: thinking !== null && thinking.length > 0
-    };
+    return { thinking, cleanResponse };
   }
   
   /**
    * Save thinking to database AND request extraction
-   * Skips extraction for malformed thinking (no-guilt delete)
    */
   async _saveThinking(userMessage, thinking, responseSummary) {
     if (!this.db) return;
     
     try {
-      // Check if this is malformed thinking
-      const isMalformed = thinking.startsWith('[MALFORMED]');
-      
       // Save thinking log
       const result = this.db.prepare(`
         INSERT INTO thinking_log (
           user_message, thinking_content, thinking_length, 
-          response_summary, model_used, processed_for_beliefs
-        ) VALUES (?, ?, ?, ?, ?, ?)
+          response_summary, model_used
+        ) VALUES (?, ?, ?, ?, ?)
       `).run(
         userMessage,
         thinking,
         thinking.length,
         responseSummary.substring(0, 200),
-        this.llmModel,
-        isMalformed ? -1 : 0  // -1 = skip extraction, 0 = not processed yet
+        this.llmModel
       );
       
       const thinkingLogId = result.lastInsertRowid;
       
-      if (isMalformed) {
-        logger.info(`Saved malformed thinking log ${thinkingLogId} (will NOT extract beliefs)`);
-      } else {
-        logger.info(`Saved thinking log ${thinkingLogId}: ${thinking.length} chars`);
-        
-        // Request autonomous extraction (non-blocking) - only for well-formed thinking
-        if (this.extractionManager) {
-          this._requestExtraction(thinkingLogId, userMessage, thinking, responseSummary);
-        }
+      logger.info(`Saved thinking log ${thinkingLogId}: ${thinking.length} chars`);
+      
+      // Request autonomous extraction (non-blocking)
+      if (this.extractionManager) {
+        this._requestExtraction(thinkingLogId, userMessage, thinking, responseSummary);
       }
       
     } catch (err) {

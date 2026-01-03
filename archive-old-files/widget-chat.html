@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NIA Widget</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+    }
+    
+    /* Compact Widget Mode - STATIONARY outer, draggable */
+    /* Background changes based on Nia's cognitive state */
+    .widget-compact {
+      width: 140px;
+      height: 200px;
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Default: Amber (happy) */
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 15px;
+      cursor: pointer;
+      transition: background 1s ease, box-shadow 0.2s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      -webkit-app-region: drag; /* Make draggable */
+    }
+    
+    /* Cognitive state colors */
+    .widget-compact.state-normal {
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Amber - happy/content */
+    }
+    
+    .widget-compact.state-tired {
+      background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); /* Blue - tired */
+    }
+    
+    .widget-compact.state-overwhelmed {
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); /* Red - overwhelmed */
+    }
+    
+    .widget-compact.state-critically_low {
+      background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%); /* Dark red - exhausted */
+    }
+    
+    .widget-compact:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    
+    /* Inner components BREATHE */
+    .widget-compact .avatar {
+      animation: breathe 3s ease-in-out infinite;
+    }
+    
+    .widget-compact .name {
+      animation: breathe 3s ease-in-out infinite;
+      animation-delay: 0.2s;
+    }
+    
+    .widget-compact .status {
+      animation: breathe 3s ease-in-out infinite;
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes breathe {
+      0%, 100% { transform: translateY(0px) scale(1); opacity: 1; }
+      50% { transform: translateY(-3px) scale(1.02); opacity: 0.9; }
+    }
+    
+    .avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      overflow: hidden;
+      border: 3px solid rgba(255,255,255,0.5);
+    }
+    
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .name {
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .status {
+      color: rgba(255,255,255,0.9);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+    }
+    
+    .status-dot.offline {
+      background: #f87171;
+    }
+    
+    .status-dot.thinking {
+      background: #fbbf24;
+      animation: thinking-pulse 0.8s ease-in-out infinite;
+    }
+    
+    @keyframes thinking-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    
+    .status-dot.online {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .menu-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      border-radius: 5px;
+      color: white;
+      padding: 5px 8px;
+      cursor: pointer;
+      font-size: 14px;
+      -webkit-app-region: no-drag; /* Exclude from drag */
+    }
+    
+    .menu-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    /* Expanded Chat Mode */
+    .widget-expanded {
+      width: 400px;
+      height: 600px;
+      background: #ffffff;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .chat-header {
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Default: Amber */
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      -webkit-app-region: drag; /* Header is draggable */
+      transition: background 1s ease; /* Smooth color transitions */
+    }
+    
+    /* Emotional state colors for expanded header */
+    .widget-expanded.state-normal .chat-header {
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); /* Amber */
+    }
+    
+    .widget-expanded.state-tired .chat-header {
+      background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); /* Blue */
+    }
+    
+    .widget-expanded.state-overwhelmed .chat-header {
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); /* Red */
+    }
+    
+    .widget-expanded.state-critically_low .chat-header {
+      background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%); /* Dark Red */
+    }
+    
+    .chat-header .avatar {
+      width: 50px;
+      height: 50px;
+      margin-bottom: 0;
+      border: 2px solid rgba(255,255,255,0.5);
+      animation: none; /* No breathing in expanded mode */
+    }
+    
+    .header-info {
+      flex: 1;
+    }
+    
+    .header-info .name {
+      font-size: 16px;
+      margin-bottom: 2px;
+      animation: none;
+    }
+    
+    .header-info .status {
+      font-size: 12px;
+      animation: none;
+    }
+    
+    .header-buttons {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag; /* Buttons not draggable */
+    }
+    
+    .header-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    
+    .header-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      background: #f8f9fa;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      -webkit-app-region: no-drag;
+    }
+    
+    .message {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    
+    .message.user {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .message.assistant {
+      background: white;
+      color: #333;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .message.system {
+      background: #e9ecef;
+      color: #6c757d;
+      align-self: center;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+    
+    .message.error {
+      background: #fee2e2;
+      color: #dc2626;
+      align-self: center;
+      font-size: 12px;
+    }
+    
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 10px 14px;
+      background: white;
+      border-radius: 18px;
+      align-self: flex-start;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #667eea;
+      animation: typing 1.4s ease-in-out infinite;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-10px); }
+    }
+    
+    .chat-input-container {
+      padding: 12px;
+      background: white;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    
+    .chat-input {
+      flex: 1;
+      border: 1px solid #dee2e6;
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .chat-input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .send-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: transform 0.1s;
+    }
+    
+    .send-btn:hover {
+      transform: scale(1.05);
+    }
+    
+    .send-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* Identity Bar */
+    .identity-bar {
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      border-top: 1px solid #e9ecef;
+      cursor: pointer;
+      transition: background 0.2s;
+      -webkit-app-region: no-drag;
+    }
+    
+    .identity-bar:hover {
+      background: linear-gradient(135deg, #667eea25 0%, #764ba225 100%);
+    }
+    
+    .identity-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+      color: #495057;
+    }
+    
+    .identity-stat.positive {
+      color: #28a745;
+    }
+    
+    .identity-stat.negative {
+      color: #6c757d;
+    }
+    
+    /* Identity Panel */
+    .identity-panel {
+      background: white;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      border-top: 1px solid #e9ecef;
+    }
+    
+    .identity-panel.expanded {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .identity-section {
+      padding: 12px;
+      border-bottom: 1px solid #f1f3f5;
+    }
+    
+    .identity-section:last-child {
+      border-bottom: none;
+    }
+    
+    .identity-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 8px;
+    }
+    
+    .identity-item {
+      font-size: 12px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      color: #495057;
+    }
+    
+    .identity-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .identity-item.belief {
+      border-left: 3px solid #667eea;
+    }
+    
+    .identity-item.warmth {
+      border-left: 3px solid #28a745;
+    }
+    
+    .identity-item.wisdom {
+      border-left: 3px solid #6c757d;
+    }
+    
+    .conviction-bar {
+      height: 4px;
+      background: #e9ecef;
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    
+    .conviction-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      transition: width 0.3s ease;
+    }
+    
+    /* Debug messages - distinct styling */
+    .message.debug {
+      background: #1e293b;
+      color: #10b981;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 11px;
+      border-left: 3px solid #10b981;
+      padding: 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .message.debug-title {
+      background: #0f172a;
+      color: #60a5fa;
+      font-weight: 600;
+      border-left: 3px solid #60a5fa;
+      margin-top: 8px;
+    }
+    
+    /* Debug Panel */
+    .debug-panel {
+      position: absolute;
+      top: 60px;
+      right: 10px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      z-index: 1000;
+      max-width: 200px;
+    }
+    
+    .debug-panel-title {
+      color: #60a5fa;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    
+    .debug-btn {
+      display: block;
+      width: 100%;
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s;
+    }
+    
+    .debug-btn:hover {
+      background: #475569;
+    }
+    
+    .debug-btn:active {
+      background: #1e293b;
+    }
+    
+    .debug-toggle-btn {
+      position: absolute;
+      top: 15px;
+      right: 55px;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      border-radius: 4px;
+      color: white;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 10px;
+      -webkit-app-region: no-drag;
+      transition: background 0.2s;
+    }
+    
+    .debug-toggle-btn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Compact Widget View -->
+  <div id="compact-view" class="widget-compact state-normal hidden">
+    <button class="menu-btn" id="menu-btn-compact">☰</button>
+    <div class="avatar" id="avatar-compact">
+      <img src="Nia.png" alt="NIA" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><text y=%2250%22 font-size=%2240%22>🐱</text></svg>'">
+    </div>
+    <div class="name">NIA</div>
+    <div class="status">
+      <span class="status-dot"></span>
+      <span class="status-text">Offline</span>
+    </div>
+    <div class="energy-indicator" id="energy-compact" style="width: 80%; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+      <div style="height: 100%; background: rgba(255,255,255,0.8); width: 100%; transition: width 0.5s ease;"></div>
+    </div>
+  </div>
+  
+  <!-- Expanded Chat View -->
+  <div id="expanded-view" class="widget-expanded state-normal">
+    <div class="chat-header">
+      <div class="avatar">
+        <img src="Nia.png" alt="NIA">
+      </div>
+      <div class="header-info">
+        <div class="name">NIA</div>
+        <div class="status">
+          <span class="status-dot"></span>
+          <span class="status-text">Offline</span>
+        </div>
+      </div>
+      <div class="header-buttons">
+        <button class="debug-toggle-btn" id="debug-toggle-btn" title="Debug Tools">🔧</button>
+        <button class="header-btn" id="collapse-btn">−</button>
+        <button class="header-btn" id="menu-btn-expanded">☰</button>
+      </div>
+    </div>
+    
+    <!-- Debug Panel -->
+    <div class="debug-panel hidden" id="debug-panel">
+      <div class="debug-panel-title">🔧 Debug Tools</div>
+      <button class="debug-btn" onclick="window.debugCommands.cognitiveState()">Cognitive State</button>
+      <button class="debug-btn" onclick="window.debugCommands.beliefs()">Show Beliefs</button>
+      <button class="debug-btn" onclick="window.debugCommands.scars()">Show Scars</button>
+      <button class="debug-btn" onclick="window.debugCommands.thinkingStats()">Thinking Stats</button>
+      <button class="debug-btn" onclick="window.debugCommands.recentThinking()">Recent Thinking</button>
+      <button class="debug-btn" onclick="window.debugCommands.status()">Daemon Status</button>
+      <button class="debug-btn" onclick="window.debugCommands.processBeliefs()">Process Beliefs</button>
+      <button class="debug-btn" onclick="window.debugCommands.clearChat()">Clear Chat</button>
+      <button class="debug-btn" onclick="window.debugCommands.help()">Show Help</button>
+    </div>
+    
+    <div class="chat-messages" id="messages">
+      <div class="message system">Chat with NIA - Your AI companion</div>
+    </div>
+    
+    <div class="identity-bar" id="identity-bar" title="Click to see more">
+      <div class="identity-stat">💭 <span id="stat-beliefs">0</span> beliefs</div>
+      <div class="identity-stat positive">✨ <span id="stat-warmth">0</span> warmth</div>
+      <div class="identity-stat negative">📖 <span id="stat-wisdom">0</span> wisdom</div>
+      <div class="identity-stat" id="stat-cognitive">🟢 Normal</div>
+    </div>
+    
+    <div class="identity-panel" id="identity-panel">
+      <div class="identity-section" id="beliefs-section">
+        <div class="identity-section-title">What I Believe</div>
+        <div id="beliefs-list">
+          <div class="identity-item belief">No beliefs formed yet - we're just getting started!</div>
+        </div>
+      </div>
+      <div class="identity-section" id="moments-section">
+        <div class="identity-section-title">Moments That Shaped Me</div>
+        <div id="moments-list">
+          <div class="identity-item">No defining moments yet - our story is just beginning</div>
+        </div>
+      </div>
+      <div class="identity-section" id="cognitive-section">
+        <div class="identity-section-title">Cognitive State</div>
+        <div id="cognitive-details" style="padding: 8px; font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #666;">Energy:</span>
+            <span id="cognitive-energy-text" style="font-weight: 600;">100%</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-bottom: 12px;">
+            <div id="cognitive-energy-bar" style="height: 100%; background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%); width: 100%; transition: width 0.5s ease, background 0.5s ease;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #666;">State:</span>
+            <span id="cognitive-state-text" style="font-weight: 600;">Normal</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #666;">Feeling:</span>
+            <span id="cognitive-feeling-text" style="font-weight: 600;">Clear</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #666;">Queued:</span>
+            <span id="cognitive-queued-text">0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666;">Can Process:</span>
+            <span id="cognitive-can-process-text" style="color: #10b981;">Yes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="chat-input-container">
+      <textarea 
+        class="chat-input" 
+        id="chat-input" 
+        placeholder="Type a message..."
+        rows="1"
+      ></textarea>
+      <button class="send-btn" id="send-btn">↑</button>
+    </div>
+  </div>
+  
+  <script>
+    const { ipcRenderer } = require('electron');
+    
+    // State
+    let isExpanded = true;
+    let isWaitingForResponse = false;
+    let lastKnownUptime = null;
+    
+    // Elements
+    const compactView = document.getElementById('compact-view');
+    const expandedView = document.getElementById('expanded-view');
+    const messagesContainer = document.getElementById('messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    
+    // Toggle view
+    function toggleView() {
+      isExpanded = !isExpanded;
+      compactView.classList.toggle('hidden', isExpanded);
+      expandedView.classList.toggle('hidden', !isExpanded);
+      ipcRenderer.send('resize-window', isExpanded ? 'expanded' : 'compact');
+    }
+    
+    // Click handlers - only toggle on avatar/name click, not drag
+    document.getElementById('avatar-compact').addEventListener('click', toggleView);
+    document.querySelector('.widget-compact .name').addEventListener('click', toggleView);
+    
+    document.getElementById('collapse-btn').addEventListener('click', toggleView);
+    document.getElementById('menu-btn-compact').addEventListener('click', (e) => {
+      e.stopPropagation();
+      ipcRenderer.send('show-menu');
+    });
+    document.getElementById('menu-btn-expanded').addEventListener('click', () => ipcRenderer.send('show-menu'));
+    
+    // Debug panel toggle
+    document.getElementById('debug-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const debugPanel = document.getElementById('debug-panel');
+      debugPanel.classList.toggle('hidden');
+    });
+    
+    // Close debug panel when clicking outside
+    document.addEventListener('click', (e) => {
+      const debugPanel = document.getElementById('debug-panel');
+      const debugBtn = document.getElementById('debug-toggle-btn');
+      if (!debugPanel.contains(e.target) && e.target !== debugBtn) {
+        debugPanel.classList.add('hidden');
+      }
+    });
+    
+    // Update status display
+    function updateStatus(online, uptime = null, isThinking = false) {
+      const dots = document.querySelectorAll('.status-dot');
+      const texts = document.querySelectorAll('.status-text');
+      
+      if (uptime) lastKnownUptime = uptime;
+      
+      dots.forEach(dot => {
+        dot.classList.remove('online', 'offline', 'thinking');
+        if (isThinking) {
+          dot.classList.add('thinking');
+        } else if (online) {
+          dot.classList.add('online');
+        } else {
+          dot.classList.add('offline');
+        }
+      });
+      
+      let statusText;
+      if (isThinking) {
+        statusText = 'Thinking... 💭';
+      } else if (online) {
+        statusText = lastKnownUptime ? `Online (${lastKnownUptime})` : 'Online';
+      } else {
+        statusText = 'Offline';
+      }
+      
+      texts.forEach(text => text.textContent = statusText);
+    }
+    
+    // Update identity stats
+    function updateIdentity(data) {
+      if (!data) return;
+      
+      // Update belief count
+      const beliefCount = data.active_beliefs || (data.beliefs?.core?.length || 0) + (data.beliefs?.active?.length || 0) + (data.beliefs?.emerging?.length || 0);
+      document.getElementById('stat-beliefs').textContent = beliefCount;
+      
+      // Update warmth (positive scars/moments) and wisdom (negative/growth moments)
+      const warmth = data.formative_scars?.positive || 0;
+      const wisdom = data.formative_scars?.negative || 0;
+      document.getElementById('stat-warmth').textContent = warmth;
+      document.getElementById('stat-wisdom').textContent = wisdom;
+      
+      // Cognitive state
+      const cogStat = document.getElementById('stat-cognitive');
+      const fatigue = data.cognitive_load?.fatigue || 'normal';
+      
+      const fatigueDisplay = {
+        'normal': '🟢 Normal',
+        'tired': '🟡 Tired',
+        'exhausted': '🟠 Exhausted',
+        'overwhelmed': '🔴 Overwhelmed'
+      };
+      
+      cogStat.textContent = fatigueDisplay[fatigue] || '🟢 Normal';
+      
+      // Store for panel update
+      window.lastIdentityData = data;
+    }
+    
+    // Update identity panel content
+    function updateIdentityPanel(data) {
+      if (!data) return;
+      
+      const beliefsList = document.getElementById('beliefs-list');
+      const momentsList = document.getElementById('moments-list');
+      
+      // Update beliefs
+      if (data.beliefs && (data.beliefs.core?.length || data.beliefs.active?.length || data.beliefs.emerging?.length)) {
+        const allBeliefs = [
+          ...(data.beliefs.core || []).map(b => ({ ...b, tier: 'core' })),
+          ...(data.beliefs.active || []).map(b => ({ ...b, tier: 'active' })),
+          ...(data.beliefs.emerging || []).map(b => ({ ...b, tier: 'emerging' }))
+        ].slice(0, 5);
+        
+        if (allBeliefs.length > 0) {
+          beliefsList.innerHTML = allBeliefs.map(b => `
+            <div class="identity-item belief">
+              <span>${b.belief_statement?.substring(0, 50) || b.statement?.substring(0, 50)}${(b.belief_statement || b.statement || '').length > 50 ? '...' : ''}</span>
+              <div class="conviction-bar">
+                <div class="conviction-fill" style="width: ${b.conviction_score || b.conviction || 10}%"></div>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+      
+      // Update moments (scars)
+      if (data.scars && data.scars.length > 0) {
+        momentsList.innerHTML = data.scars.slice(0, 4).map(s => {
+          const isPositive = s.type === 'connection' || s.emotional_valence > 0;
+          const className = isPositive ? 'warmth' : 'wisdom';
+          const emoji = isPositive ? '✨' : '📖';
+          return `
+            <div class="identity-item ${className}">
+              ${emoji} ${(s.description || s.scar_description || 'Formative moment').substring(0, 60)}${(s.description || s.scar_description || '').length > 60 ? '...' : ''}
+            </div>
+          `;
+        }).join('');
+      }
+    }
+    
+    // Toggle identity panel
+    let identityPanelExpanded = false;
+    
+    document.getElementById('identity-bar').addEventListener('click', () => {
+      identityPanelExpanded = !identityPanelExpanded;
+      const panel = document.getElementById('identity-panel');
+      panel.classList.toggle('expanded', identityPanelExpanded);
+      
+      if (identityPanelExpanded && window.lastIdentityData) {
+        updateIdentityPanel(window.lastIdentityData);
+      }
+    });
+    
+    // Add message to chat
+    function addMessage(content, type = 'assistant') {
+      const msg = document.createElement('div');
+      msg.className = `message ${type}`;
+      
+      if (type === 'debug' || type === 'debug-title') {
+        msg.textContent = content; // Keep formatting for debug
+      } else {
+        msg.textContent = content;
+      }
+      
+      messagesContainer.appendChild(msg);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Debug helper - outputs to chat WITHOUT sending to LLM
+    function addDebugMessage(title, data) {
+      // Title
+      const titleMsg = document.createElement('div');
+      titleMsg.className = 'message debug-title';
+      titleMsg.textContent = `🔧 ${title}`;
+      messagesContainer.appendChild(titleMsg);
+      
+      // Data
+      const dataMsg = document.createElement('div');
+      dataMsg.className = 'message debug';
+      dataMsg.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      messagesContainer.appendChild(dataMsg);
+      
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Typing indicator
+    let typingIndicator = null;
+    
+    function showTyping() {
+      if (typingIndicator) return;
+      typingIndicator = document.createElement('div');
+      typingIndicator.className = 'typing-indicator';
+      typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+      messagesContainer.appendChild(typingIndicator);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function hideTyping() {
+      if (typingIndicator) {
+        typingIndicator.remove();
+        typingIndicator = null;
+      }
+    }
+    
+    // Send message
+    async function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text || isWaitingForResponse) return;
+      
+      addMessage(text, 'user');
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+      
+      showTyping();
+      sendBtn.disabled = true;
+      isWaitingForResponse = true;
+      updateStatus(true, null, true);
+      
+      ipcRenderer.send('chat-message', { message: text });
+    }
+    
+    sendBtn.addEventListener('click', sendMessage);
+    
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    
+    chatInput.addEventListener('input', () => {
+      chatInput.style.height = 'auto';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+    });
+    
+    // ========================================
+    // DEBUG COMMANDS (output to chat, don't send to LLM)
+    // ========================================
+    
+    async function debugCognitiveState() {
+      try {
+        const state = await ipcRenderer.invoke('send-command', 'cognitive_state');
+        addDebugMessage('Cognitive State', state);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get cognitive state: ${err.message}`);
+      }
+    }
+    
+    async function debugBeliefs() {
+      try {
+        const beliefs = await ipcRenderer.invoke('send-command', 'beliefs_full');
+        addDebugMessage('Beliefs', beliefs);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get beliefs: ${err.message}`);
+      }
+    }
+    
+    async function debugScars() {
+      try {
+        const scars = await ipcRenderer.invoke('send-command', 'scars');
+        addDebugMessage('Scars', scars);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get scars: ${err.message}`);
+      }
+    }
+    
+    async function debugThinkingStats() {
+      try {
+        const stats = await ipcRenderer.invoke('send-command', 'thinking_stats');
+        addDebugMessage('Thinking Log Stats', stats);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get thinking stats: ${err.message}`);
+      }
+    }
+    
+    async function debugRecentThinking() {
+      try {
+        const thinking = await ipcRenderer.invoke('send-command', 'recent_thinking', { limit: 5 });
+        addDebugMessage('Recent Thinking (Last 5)', thinking);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get recent thinking: ${err.message}`);
+      }
+    }
+    
+    async function debugStatus() {
+      try {
+        const status = await ipcRenderer.invoke('send-command', 'status');
+        addDebugMessage('Daemon Status', status);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to get status: ${err.message}`);
+      }
+    }
+    
+    async function debugProcessBeliefs() {
+      try {
+        addDebugMessage('Processing Beliefs', 'Triggering manual belief processing...');
+        const result = await ipcRenderer.invoke('send-command', 'process_beliefs');
+        addDebugMessage('Process Result', result);
+      } catch (err) {
+        addDebugMessage('Error', `Failed to process beliefs: ${err.message}`);
+      }
+    }
+    
+    function debugClearChat() {
+      const messages = messagesContainer.querySelectorAll('.message:not(.system)');
+      messages.forEach(msg => msg.remove());
+      addMessage('Chat cleared (locally only - not sent to daemon)', 'system');
+    }
+    
+    function debugShowHelp() {
+      addDebugMessage('Debug Commands', `Available debug commands:
+• Ctrl+1: Show Cognitive State
+• Ctrl+2: Show Beliefs
+• Ctrl+3: Show Scars  
+• Ctrl+4: Show Thinking Stats
+• Ctrl+5: Show Recent Thinking
+• Ctrl+6: Show Daemon Status
+• Ctrl+7: Process Beliefs Manually
+• Ctrl+8: Clear Chat (local only)
+
+Or use the menu (☰) to access debug tools.
+
+All debug output appears ONLY in chat window.
+Nothing is sent to the LLM.`);
+    }
+    
+    // Keyboard shortcuts for debug commands
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey) {
+        switch(e.key) {
+          case '1': e.preventDefault(); debugCognitiveState(); break;
+          case '2': e.preventDefault(); debugBeliefs(); break;
+          case '3': e.preventDefault(); debugScars(); break;
+          case '4': e.preventDefault(); debugThinkingStats(); break;
+          case '5': e.preventDefault(); debugRecentThinking(); break;
+          case '6': e.preventDefault(); debugStatus(); break;
+          case '7': e.preventDefault(); debugProcessBeliefs(); break;
+          case '8': e.preventDefault(); debugClearChat(); break;
+          case '/': 
+          case '?': e.preventDefault(); debugShowHelp(); break;
+        }
+      }
+    });
+    
+    // Expose debug functions globally for menu access
+    window.debugCommands = {
+      cognitiveState: debugCognitiveState,
+      beliefs: debugBeliefs,
+      scars: debugScars,
+      thinkingStats: debugThinkingStats,
+      recentThinking: debugRecentThinking,
+      status: debugStatus,
+      processBeliefs: debugProcessBeliefs,
+      clearChat: debugClearChat,
+      help: debugShowHelp
+    };
+    
+    // ========================================
+    // END DEBUG COMMANDS
+    // ========================================
+    
+    // IPC Handlers
+    ipcRenderer.on('status-update', (event, data) => {
+      if (!isWaitingForResponse) {
+        updateStatus(data.online, data.uptime, false);
+      }
+    });
+    
+    ipcRenderer.on('identity-update', (event, data) => {
+      updateIdentity(data);
+    });
+    
+    ipcRenderer.on('chat-response', (event, data) => {
+      hideTyping();
+      sendBtn.disabled = false;
+      isWaitingForResponse = false;
+      updateStatus(true, lastKnownUptime, false);
+      
+      if (data.success) {
+        addMessage(data.response, 'assistant');
+      } else if (data.blocked) {
+        addMessage(data.response || data.reason, 'system');
+      } else {
+        addMessage(data.response || 'Something went wrong.', 'error');
+      }
+      
+      ipcRenderer.send('request-identity');
+    });
+    
+    ipcRenderer.on('toggle-mode', () => toggleView());
+    
+    // Initial status request
+    setTimeout(() => {
+      ipcRenderer.send('request-status');
+      ipcRenderer.send('request-identity');
+      updateCognitiveState(); // Initial cognitive state
+      
+      // Show debug help on startup
+      addMessage('🔧 Debug Tools: Click the wrench (🔧) in header or press Ctrl+? for help', 'system');
+    }, 500);
+    
+    // Periodic cognitive state updates (every 10 seconds)
+    setInterval(() => {
+      updateCognitiveState();
+    }, 10000);
+    
+    // Update cognitive state and widget colors
+    async function updateCognitiveState() {
+      try {
+        const state = await ipcRenderer.invoke('send-command', 'cognitive_state');
+        
+        if (state && state.available) {
+          // Update compact widget color
+          const compactWidget = document.getElementById('compact-view');
+          compactWidget.className = `widget-compact state-${state.state}`;
+          
+          // Update expanded widget color
+          const expandedWidget = document.getElementById('expanded-view');
+          expandedWidget.className = `widget-expanded state-${state.state}`;
+          
+          // Update energy indicator
+          const energyBar = document.querySelector('#energy-compact > div');
+          if (energyBar) {
+            energyBar.style.width = `${state.energy}%`;
+          }
+          
+          // Update cognitive stat in identity bar
+          const cogStat = document.getElementById('stat-cognitive');
+          const stateEmoji = {
+            'normal': '🟢',
+            'tired': '🟡',
+            'overwhelmed': '🔴',
+            'critically_low': '⚫'
+          };
+          
+          const stateText = {
+            'normal': 'Clear',
+            'tired': 'Tired',
+            'overwhelmed': 'Overwhelmed',
+            'critically_low': 'Exhausted'
+          };
+          
+          cogStat.textContent = `${stateEmoji[state.state] || '🟢'} ${stateText[state.state] || 'Clear'} (${state.energy}%)`;
+          cogStat.title = `Energy: ${state.energy}% - ${state.feeling}`;
+          
+          // Update status text if overwhelmed/exhausted
+          if (state.state === 'overwhelmed' || state.state === 'critically_low') {
+            const statusTexts = document.querySelectorAll('.status-text');
+            statusTexts.forEach(text => {
+              if (!text.textContent.includes('Thinking')) {
+                text.textContent = `${stateText[state.state]} 😔`;
+              }
+            });
+          }
+          
+          // Update detailed cognitive panel
+          const energyText = document.getElementById('cognitive-energy-text');
+          const energyBar = document.getElementById('cognitive-energy-bar');
+          const stateTextEl = document.getElementById('cognitive-state-text');
+          const feelingText = document.getElementById('cognitive-feeling-text');
+          const queuedText = document.getElementById('cognitive-queued-text');
+          const canProcessText = document.getElementById('cognitive-can-process-text');
+          
+          if (energyText) energyText.textContent = `${state.energy}%`;
+          if (energyBar) {
+            energyBar.style.width = `${state.energy}%`;
+            // Change energy bar color based on state
+            const barColors = {
+              'normal': 'linear-gradient(90deg, #F59E0B 0%, #D97706 100%)',
+              'tired': 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)',
+              'overwhelmed': 'linear-gradient(90deg, #EF4444 0%, #DC2626 100%)',
+              'critically_low': 'linear-gradient(90deg, #991B1B 0%, #7F1D1D 100%)'
+            };
+            energyBar.style.background = barColors[state.state] || barColors['normal'];
+          }
+          
+          if (stateTextEl) stateTextEl.textContent = stateText[state.state] || 'Normal';
+          if (feelingText) feelingText.textContent = state.feeling || 'clear';
+          if (queuedText) queuedText.textContent = state.queuedExtractions || 0;
+          if (canProcessText) {
+            canProcessText.textContent = state.canProcess ? 'Yes' : 'No';
+            canProcessText.style.color = state.canProcess ? '#10b981' : '#ef4444';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to update cognitive state:', err);
+      }
+    }
+    
+    // Start expanded
+    compactView.classList.add('hidden');
+    expandedView.classList.remove('hidden');
+  </script>
+</body>
+</html>

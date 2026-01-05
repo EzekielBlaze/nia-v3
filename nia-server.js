@@ -14,9 +14,9 @@ const WebSocket = require('ws');
 let IPCClient = null;
 try {
   IPCClient = require('./ipc-client');
-  console.log('✓ IPCClient loaded');
+  console.log('âœ“ IPCClient loaded');
 } catch (err) {
-  console.log('✗ IPCClient not available:', err.message);
+  console.log('âœ— IPCClient not available:', err.message);
 }
 
 const PORT = 3000;
@@ -35,6 +35,12 @@ function handleRequest(req, res) {
     return;
   }
   
+  // Serve Debug Console
+  if (url === '/debug' || url === '/debug.html') {
+    serveFile(res, 'nia-debug.html', 'text/html');
+    return;
+  }
+  
   // Serve Nia's picture
   if (url === '/Nia.png' || url === '/nia.png') {
     serveFile(res, 'Nia.png', 'image/png');
@@ -44,6 +50,18 @@ function handleRequest(req, res) {
   // API endpoint for daemon commands
   if (url.startsWith('/api/')) {
     handleAPI(req, res);
+    return;
+  }
+  
+  // Health check proxy endpoints (bypass CORS)
+  if (url.startsWith('/health/')) {
+    handleHealthProxy(req, res, url);
+    return;
+  }
+  
+  // Embedding proxy endpoint
+  if (url.startsWith('/proxy/embed')) {
+    handleEmbedProxy(req, res, url);
     return;
   }
   
@@ -114,6 +132,102 @@ async function handleAPI(req, res) {
   });
 }
 
+// Handle health check proxies (bypass browser CORS)
+async function handleHealthProxy(req, res, url) {
+  res.setHeader('Content-Type', 'application/json');
+  
+  const service = url.replace('/health/', '').split('?')[0];
+  
+  const endpoints = {
+    'memory-embedder': 'http://localhost:5001/health',
+    'belief-embedder': 'http://localhost:5002/health',
+    'qdrant': 'http://localhost:6333/collections',
+    'qdrant-memories': 'http://localhost:6333/collections/memories',
+    'qdrant-beliefs': 'http://localhost:6333/collections/beliefs',
+    'lm-studio': 'http://localhost:1234/v1/models'
+  };
+  
+  const targetUrl = endpoints[service];
+  
+  if (!targetUrl) {
+    res.writeHead(404);
+    res.end(JSON.stringify({ error: 'Unknown service' }));
+    return;
+  }
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const response = await fetch(targetUrl, { 
+      signal: controller.signal 
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      res.writeHead(response.status);
+      res.end(JSON.stringify({ error: `HTTP ${response.status}` }));
+      return;
+    }
+    
+    const data = await response.json();
+    res.writeHead(200);
+    res.end(JSON.stringify(data));
+    
+  } catch (err) {
+    console.log(`Health check failed for ${service}: ${err.message}`);
+    res.writeHead(503);
+    res.end(JSON.stringify({ error: err.message, offline: true }));
+  }
+}
+
+// Handle embedding proxy (bypass browser CORS)
+async function handleEmbedProxy(req, res, url) {
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Get service type from query param
+  const urlObj = new URL(url, 'http://localhost');
+  const type = urlObj.searchParams.get('type') || 'memory';
+  
+  const port = type === 'belief' ? 5002 : 5001;
+  const targetUrl = `http://localhost:${port}/embed`;
+  
+  // Collect POST body
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        res.writeHead(response.status);
+        res.end(JSON.stringify({ error: `HTTP ${response.status}` }));
+        return;
+      }
+      
+      const data = await response.json();
+      res.writeHead(200);
+      res.end(JSON.stringify(data));
+      
+    } catch (err) {
+      console.log(`Embed proxy failed: ${err.message}`);
+      res.writeHead(503);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
+
 // WebSocket for real-time updates
 wss.on('connection', (ws) => {
   console.log('Client connected via WebSocket');
@@ -154,8 +268,8 @@ wss.on('connection', (ws) => {
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`✓ Server running at http://localhost:${PORT}`);
-  console.log(`✓ Open browser to http://localhost:${PORT}\n`);
+  console.log(`âœ“ Server running at http://localhost:${PORT}`);
+  console.log(`âœ“ Open browser to http://localhost:${PORT}\n`);
   
   // Try to open browser automatically
   const open = require('child_process').exec;

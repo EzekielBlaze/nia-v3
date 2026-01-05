@@ -1,0 +1,15 @@
+# Python requirements for NIA embedding services
+# Install with: pip install -r requirements.txt
+
+# Flask web framework (for API endpoints)
+flask==3.0.0
+
+# Sentence transformers (for memory embeddings)
+sentence-transformers==2.2.2
+
+# NumPy (for vector operations)
+numpy==1.24.3
+
+# Optional: For production Poincaré embeddings
+# Uncomment if you want to use gensim's PoincareModel instead of SimplePoincare
+# gensim==4.3.2

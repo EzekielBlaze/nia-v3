@@ -3,613 +3,2648 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NIA - Your AI Companion</title>
+  <title>NIA - ChromaFlux</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; transition: background 0.5s ease; }
     
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
+    /* EVERYDAY MODE */
+    body.everyday { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%); }
+    body.everyday #app-everyday { display: flex; }
+    body.everyday #app-debug { display: none; }
+    
+    #app-everyday { display: none; height: 100vh; justify-content: center; align-items: center; padding: 20px; }
+    .everyday-container { background: white; border-radius: 24px; box-shadow: 0 25px 80px rgba(180, 120, 40, 0.3); width: 100%; max-width: 800px; height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+    .everyday-header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px 25px; display: flex; align-items: center; gap: 18px; }
+    .everyday-avatar { width: 70px; height: 70px; border-radius: 50%; background: white; padding: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .everyday-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .everyday-info { flex: 1; color: white; }
+    .everyday-info h1 { font-size: 28px; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+    .everyday-info .status { font-size: 14px; opacity: 0.9; }
+    .conn-dot { width: 12px; height: 12px; border-radius: 50%; background: #6b7280; animation: pulse 2s infinite; }
+    .conn-dot.ok { background: #22c55e; }
+    .conn-dot.err { background: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .mode-toggle { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4); color: white; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s; }
+    .mode-toggle:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+    .everyday-messages { flex: 1; padding: 20px; overflow-y: auto; background: #fffbeb; }
+    .everyday-messages .msg { margin-bottom: 15px; padding: 14px 18px; border-radius: 18px; max-width: 75%; line-height: 1.6; font-size: 15px; }
+    .everyday-messages .msg.user { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; margin-left: auto; border-bottom-right-radius: 6px; }
+    .everyday-messages .msg.assistant { background: white; color: #1f2937; border: 1px solid #fde68a; border-bottom-left-radius: 6px; }
+    .everyday-messages .msg.system { background: #fef3c7; color: #92400e; max-width: 100%; text-align: center; font-size: 13px; border-radius: 12px; }
+    .everyday-input { padding: 20px; background: white; border-top: 1px solid #fde68a; display: flex; gap: 12px; }
+    .everyday-input textarea { flex: 1; padding: 14px 18px; border: 2px solid #fde68a; border-radius: 16px; font-size: 15px; font-family: inherit; resize: none; background: #fffbeb; }
+    .everyday-input textarea:focus { outline: none; border-color: #f59e0b; }
+    .everyday-input button { padding: 14px 28px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none; border-radius: 16px; cursor: pointer; font-weight: 700; font-size: 15px; transition: transform 0.2s; }
+    .everyday-input button:hover { transform: scale(1.05); }
+    .typing-indicator { display: flex; gap: 5px; padding: 14px 18px; }
+    .typing-indicator span { width: 10px; height: 10px; border-radius: 50%; background: #f59e0b; animation: typing 1.4s infinite; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); } 30% { opacity: 1; transform: scale(1); } }
+    .everyday-quick { padding: 12px 20px; background: #fef3c7; border-top: 1px solid #fde68a; display: flex; gap: 8px; flex-wrap: wrap; }
+    .quick-btn { padding: 8px 14px; background: white; border: 1px solid #fcd34d; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+    .quick-btn:hover { background: #fef3c7; border-color: #f59e0b; }
+    .quick-btn.danger { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+    
+    /* Quick expand panel */
+    .quick-expand { 
+      background: white; 
+      border-top: 2px solid #f59e0b; 
+      padding: 15px 20px; 
+      position: relative;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .quick-expand-content { 
+      font-size: 13px; 
+      color: #1f2937; 
+      line-height: 1.8;
+    }
+    .quick-expand-content .stat-row {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #fef3c7;
     }
-    
-    #container {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      width: 100%;
-      max-width: 1200px;
-      height: 90vh;
-      display: grid;
-      grid-template-columns: 350px 1fr;
-      grid-template-rows: auto 1fr auto;
-      overflow: hidden;
-    }
-    
-    /* Header with Nia's picture */
-    #header {
-      grid-column: 1 / -1;
-      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      transition: background 1s ease;
-    }
-    
-    #header.tired { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); }
-    #header.overwhelmed { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
-    #header.exhausted { background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%); }
-    
-    #nia-avatar {
-      width: 80px;
-      height: 80px;
+    .quick-expand-content .stat-label { color: #92400e; font-weight: 500; }
+    .quick-expand-content .stat-value { color: #d97706; font-weight: 700; }
+    .quick-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #fef3c7;
+      border: none;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
-      background: white;
-      padding: 5px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    
-    #nia-avatar img {
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-    
-    #header-info {
-      flex: 1;
-      color: white;
-    }
-    
-    #header-info h1 {
-      font-size: 24px;
-      margin-bottom: 5px;
-    }
-    
-    #status {
-      font-size: 14px;
-      opacity: 0.9;
-    }
-    
-    #energy-bar {
-      width: 200px;
-      height: 6px;
-      background: rgba(255,255,255,0.3);
-      border-radius: 3px;
-      overflow: hidden;
-      margin-top: 8px;
-    }
-    
-    #energy-fill {
-      height: 100%;
-      background: rgba(255,255,255,0.9);
-      width: 100%;
-      transition: width 0.5s ease;
-    }
-    
-    /* Sidebar with diagnostics */
-    #sidebar {
-      background: #f8f9fa;
-      padding: 20px;
-      overflow-y: scroll; /* Always show scrollbar */
-      overflow-x: hidden;
-      border-right: 1px solid #e9ecef;
-      min-height: 0; /* Important for flex scrolling */
-    }
-    
-    .sidebar-section {
-      margin-bottom: 20px;
-    }
-    
-    .sidebar-section h3 {
-      font-size: 14px;
-      color: #6c757d;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .diag-btn {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 8px;
-      background: white;
-      border: 1px solid #dee2e6;
-      border-radius: 8px;
       cursor: pointer;
-      text-align: left;
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-    
-    .diag-btn:hover {
-      background: #f8f9fa;
-      border-color: #667eea;
-      transform: translateY(-1px);
-    }
-    
-    .diag-btn:active {
-      transform: translateY(0);
-    }
-    
-    /* Stats display */
-    #stats {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 15px;
-    }
-    
-    .stat-box {
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #dee2e6;
-      text-align: center;
-    }
-    
-    .stat-value {
-      font-size: 24px;
-      font-weight: 600;
-      color: #667eea;
-    }
-    
-    .stat-label {
-      font-size: 11px;
-      color: #6c757d;
-      margin-top: 4px;
-    }
-    
-    /* Main chat area */
-    #main {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    
-    #messages {
-      flex: 1;
-      padding: 20px;
-      overflow-y: scroll; /* Always show scrollbar */
-      overflow-x: hidden;
-      background: #ffffff;
-      min-height: 0; /* Important for flex scrolling */
-    }
-    
-    .message {
-      margin-bottom: 15px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      max-width: 80%;
-      line-height: 1.5;
-    }
-    
-    .message.user {
-      background: #667eea;
-      color: white;
-      margin-left: auto;
-    }
-    
-    .message.assistant {
-      background: #f1f3f5;
-      color: #212529;
-    }
-    
-    .message.system {
-      background: #fff3cd;
-      color: #856404;
-      max-width: 100%;
-      text-align: center;
-      font-size: 13px;
-    }
-    
-    .message.debug {
-      background: #1e293b;
-      color: #10b981;
-      font-family: 'Consolas', monospace;
       font-size: 12px;
-      max-width: 100%;
+      color: #92400e;
+    }
+    .quick-close:hover { background: #fde68a; }
+    
+    /* Response Viewer */
+    .response-viewer { 
+      background: #0f0f18; 
+      border-bottom: 2px solid #a78bfa; 
+      font-family: monospace;
+    }
+    .response-header { 
+      display: flex; 
+      justify-content: space-between; 
+      padding: 8px 20px; 
+      cursor: pointer; 
+      font-size: 12px;
+      background: #1a1a24;
+      align-items: center;
+    }
+    .response-header:hover { background: #2a2a3a; }
+    .response-header span:first-child { color: #a78bfa; font-weight: 600; }
+    #response-cmd { color: #fbbf24; flex: 1; margin-left: 15px; }
+    #response-status { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    #response-status.ok { background: #166534; color: #bbf7d0; }
+    #response-status.err { background: #991b1b; color: #fecaca; }
+    #response-toggle { color: #6b7280; }
+    .response-body { 
+      display: none; 
+      padding: 10px 20px; 
+      font-size: 11px; 
+      color: #cbd5e1; 
+      max-height: 200px; 
+      overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
     }
+    .response-body.show { display: block; }
     
-    .message.debug-title {
-      background: #0f172a;
-      color: #60a5fa;
-      font-weight: 600;
-      max-width: 100%;
-    }
+    /* DEBUG MODE */
+    body.debug { background: #0a0a0f; color: #e0e0e0; }
+    body.debug #app-everyday { display: none; }
+    body.debug #app-debug { display: flex; }
+    #app-debug { display: none; height: 100vh; }
+    #debug-nav { width: 220px; background: #1a1a24; border-right: 1px solid #2a2a3a; display: flex; flex-direction: column; }
+    #debug-logo { padding: 20px; border-bottom: 1px solid #2a2a3a; text-align: center; }
+    #debug-logo h1 { color: #a78bfa; font-size: 24px; margin-bottom: 5px; }
+    #debug-logo .tagline { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+    #debug-nav-items { flex: 1; overflow-y: auto; padding: 10px; }
+    .debug-nav-item { padding: 12px 15px; margin-bottom: 5px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: all 0.2s; border: 1px solid transparent; }
+    .debug-nav-item:hover { background: #2a2a3a; border-color: #3a3a4a; }
+    .debug-nav-item.active { background: #a78bfa; color: #0a0a0f; font-weight: 600; }
+    #debug-status-bar { padding: 15px; border-top: 1px solid #2a2a3a; font-size: 11px; }
+    .debug-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6b7280; margin-right: 6px; animation: pulse 2s infinite; }
+    .debug-status-dot.ok { background: #22c55e; }
+    .debug-status-dot.err { background: #ef4444; }
+    #debug-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .debug-page { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .debug-page.active { display: flex; }
+    .debug-page-header { padding: 20px 30px; background: #1a1a24; border-bottom: 1px solid #2a2a3a; display: flex; justify-content: space-between; align-items: center; }
+    .debug-page-header h2 { color: #a78bfa; font-size: 24px; margin-bottom: 5px; }
+    .debug-page-header .subtitle { color: #6b7280; font-size: 13px; }
+    .debug-page-body { flex: 1; overflow-y: auto; padding: 20px 30px; }
+    .debug-section { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .debug-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #2a2a3a; flex-wrap: wrap; gap: 10px; }
+    .debug-section-title { font-size: 16px; font-weight: 600; color: #c4b5fd; }
+    .debug-grid { display: grid; gap: 15px; }
+    .debug-grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .debug-grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .debug-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .debug-stat-card { background: #2a2a3a; padding: 15px; border-radius: 8px; border: 1px solid #3a3a4a; }
+    .debug-stat-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .debug-stat-value { font-size: 28px; font-weight: 700; color: #a78bfa; }
+    .debug-stat-sub { font-size: 11px; color: #6b7280; margin-top: 5px; }
+    .dbtn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .dbtn-primary { background: #a78bfa; color: #0a0a0f; }
+    .dbtn-primary:hover { background: #c4b5fd; }
+    .dbtn-danger { background: #ef4444; color: white; }
+    .dbtn-danger:hover { background: #dc2626; }
+    .dbtn-success { background: #22c55e; color: white; }
+    .dbtn-success:hover { background: #16a34a; }
+    .dbtn-secondary { background: #3a3a4a; color: #e0e0e0; }
+    .dbtn-secondary:hover { background: #4a4a5a; }
+    .dbtn-warning { background: #f59e0b; color: #0a0a0f; }
+    .dbtn-warning:hover { background: #fbbf24; }
+    .dbtn-sm { padding: 6px 12px; font-size: 11px; }
+    .debug-input, .debug-textarea, .debug-select { background: #2a2a3a; border: 1px solid #3a3a4a; color: #e0e0e0; padding: 10px 14px; border-radius: 8px; font-family: inherit; font-size: 13px; width: 100%; }
+    .debug-input:focus, .debug-textarea:focus, .debug-select:focus { outline: none; border-color: #a78bfa; }
+    .debug-textarea { resize: vertical; min-height: 80px; }
+    .debug-table { width: 100%; border-collapse: collapse; }
+    .debug-table th { background: #2a2a3a; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #9ca3af; font-weight: 600; border-bottom: 2px solid #3a3a4a; }
+    .debug-table td { padding: 10px 12px; border-bottom: 1px solid #2a2a3a; font-size: 12px; }
+    .debug-table tr:hover { background: #2a2a3a; }
+    #debug-chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #0f0f18; }
+    .debug-msg { padding: 12px 16px; border-radius: 12px; max-width: 70%; line-height: 1.5; font-size: 14px; }
+    .debug-msg.user { background: #a78bfa; color: #0a0a0f; margin-left: auto; }
+    .debug-msg.assistant { background: #2a2a3a; color: #e0e0e0; }
+    .debug-msg.system { background: #3b82f6; color: white; max-width: 100%; text-align: center; font-size: 12px; }
+    .debug-msg.error { background: #991b1b; color: #fecaca; max-width: 100%; }
+    #debug-chat-input-area { padding: 20px; background: #1a1a24; border-top: 1px solid #2a2a3a; display: flex; gap: 12px; }
+    #debug-chat-input { flex: 1; resize: none; height: 60px; }
+    .service-card { background: #2a2a3a; border: 1px solid #3a3a4a; border-radius: 12px; padding: 20px; }
+    .service-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .service-name { font-size: 16px; font-weight: 600; color: #f8fafc; }
+    .service-status { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .service-status.running { background: #166534; color: #bbf7d0; }
+    .service-status.stopped { background: #991b1b; color: #fecaca; }
+    .service-status.unknown { background: #525252; color: #d4d4d4; }
+    .service-info { font-size: 12px; color: #9ca3af; margin-bottom: 12px; }
+    .service-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .log-entry { padding: 8px 12px; margin-bottom: 4px; border-radius: 6px; display: flex; gap: 12px; font-family: monospace; font-size: 12px; background: #2a2a3a; border: 1px solid #3a3a4a; }
+    .log-time { color: #6b7280; flex-shrink: 0; }
+    .log-level { flex-shrink: 0; width: 50px; font-weight: 700; }
+    .log-level.INFO { color: #3b82f6; }
+    .log-level.WARN { color: #f59e0b; }
+    .log-level.ERROR { color: #ef4444; }
+    .log-level.OK { color: #22c55e; }
+    .log-level.TRACE { color: #a78bfa; }
+    .log-msg { flex: 1; color: #cbd5e1; word-break: break-word; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal.show { display: flex; }
+    .modal-content { background: #1a1a24; border: 2px solid #a78bfa; border-radius: 16px; padding: 30px; max-width: 900px; max-height: 85vh; overflow-y: auto; width: 95%; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h3 { color: #a78bfa; font-size: 20px; }
+    .modal-close { background: #ef4444; border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+    .modal-body { font-family: monospace; font-size: 12px; white-space: pre-wrap; color: #cbd5e1; max-height: 60vh; overflow-y: auto; }
+    /* Everyday mode modal override */
+    body.everyday .modal-content { background: white; border-color: #f59e0b; }
+    body.everyday .modal-header h3 { color: #d97706; }
+    body.everyday .modal-body { color: #1f2937; }
+    .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+    .alert-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; }
+    .alert-warning { background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #fbbf24; }
+    .alert-info { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd; }
+    .row-actions { display: flex; gap: 4px; }
+    .row-btn { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; }
+    .row-btn.view { background: #3b82f6; color: white; }
+    .row-btn.delete { background: #ef4444; color: white; }
+    .results-box { background: #0f0f18; border: 1px solid #2a2a3a; border-radius: 8px; padding: 15px; margin-top: 15px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+    .input-group .debug-input { flex: 1; }
     
-    /* Input area */
-    #input-area {
-      padding: 20px;
-      background: #f8f9fa;
-      border-top: 1px solid #dee2e6;
-      display: flex;
-      gap: 10px;
-    }
+    /* BELIEF SPACE 3D */
+    .belief-space-container { display: flex; height: calc(100vh - 160px); gap: 0; }
+    .belief-space-sidebar { width: 280px; background: #12121a; padding: 20px; overflow-y: auto; border-right: 1px solid #2a2a3a; }
+    .belief-space-main { flex: 1; position: relative; background: #0a0a0f; }
+    .belief-space-plot { width: 100%; height: 100%; }
+    .bs-stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1a1a24; font-size: 13px; }
+    .bs-stat-label { color: #9ca3af; }
+    .bs-stat-value { color: #e0e0e0; font-weight: 600; }
+    .bs-filter-group { margin: 15px 0; }
+    .bs-filter-label { display: block; color: #9ca3af; font-size: 11px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .bs-type-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+    .bs-type-badge { padding: 5px 10px; border-radius: 10px; font-size: 11px; cursor: pointer; transition: all 0.2s; border: 1px solid #2a2a3a; color: white; }
+    .bs-type-badge:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3); }
+    .bs-type-badge.active { border-color: #a78bfa; }
+    .bs-type-badge.inactive { opacity: 0.4; background: #1a1a24 !important; }
+    .bs-legend { margin-top: 20px; }
+    .bs-legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11px; color: #9ca3af; }
+    .bs-legend-color { width: 12px; height: 12px; border-radius: 50%; }
+    .bs-info { background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 12px; line-height: 1.5; color: #c4b5fd; }
+    .bs-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #a78bfa; }
+    .bs-spinner { border: 3px solid #2a2a3a; border-top: 3px solid #a78bfa; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+    .bs-slider { width: 100%; margin: 8px 0; }
+    .bs-slider-values { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; }
+    .bs-section-title { color: #c4b5fd; font-size: 13px; font-weight: 600; margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #2a2a3a; }
     
-    #chat-input {
-      flex: 1;
-      padding: 12px 16px;
-      border: 1px solid #dee2e6;
-      border-radius: 12px;
-      font-size: 14px;
-      font-family: inherit;
-      resize: none;
-    }
-    
-    #chat-input:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-    
-    #send-btn {
-      padding: 12px 24px;
-      background: #667eea;
-      color: white;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: background 0.2s;
-    }
-    
-    #send-btn:hover {
-      background: #5568d3;
-    }
-    
-    #send-btn:disabled {
-      background: #adb5bd;
-      cursor: not-allowed;
-    }
-    
-    /* Loading indicator */
-    .typing {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #667eea;
-      animation: typing 1.4s infinite;
-    }
-    
-    .typing:nth-child(2) { animation-delay: 0.2s; }
-    .typing:nth-child(3) { animation-delay: 0.4s; }
-    
-    @keyframes typing {
-      0%, 60%, 100% { opacity: 0.3; }
-      30% { opacity: 1; }
-    }
-    
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-      width: 12px;
-      height: 12px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: #f1f3f5;
-      border-radius: 6px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: #adb5bd;
-      border-radius: 6px;
-      border: 2px solid #f1f3f5;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: #868e96;
-    }
-    
-    ::-webkit-scrollbar-thumb:active {
-      background: #495057;
-    }
-    
-    /* Firefox scrollbar */
-    * {
-      scrollbar-width: thin;
-      scrollbar-color: #adb5bd #f1f3f5;
-    }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    body.everyday ::-webkit-scrollbar-track { background: #fef3c7; }
+    body.everyday ::-webkit-scrollbar-thumb { background: #fcd34d; border-radius: 5px; }
+    body.debug ::-webkit-scrollbar-track { background: #1a1a24; }
+    body.debug ::-webkit-scrollbar-thumb { background: #3a3a4a; border-radius: 5px; }
   </style>
 </head>
-<body>
-  <div id="container">
-    <!-- Header -->
-    <div id="header">
-      <div id="nia-avatar">
-        <img src="/Nia.png" alt="NIA" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><text y=%2250%22 font-size=%2240%22>🐱</text></svg>'">
-      </div>
-      <div id="header-info">
-        <h1>NIA</h1>
-        <div id="status">Connecting...</div>
-        <div id="energy-bar">
-          <div id="energy-fill"></div>
+<body class="everyday">
+
+  <!-- =============== EVERYDAY MODE =============== -->
+  <div id="app-everyday">
+    <div class="everyday-container">
+      <div class="everyday-header">
+        <div class="everyday-avatar">
+          <img src="/Nia.png" alt="NIA" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23fbbf24%22/><text x=%2250%22 y=%2268%22 text-anchor=%22middle%22 font-size=%2245%22>😺</text></svg>'">
         </div>
-      </div>
-    </div>
-    
-    <!-- Sidebar with diagnostics -->
-    <div id="sidebar">
-      <div id="stats">
-        <div class="stat-box">
-          <div class="stat-value" id="stat-beliefs">0</div>
-          <div class="stat-label">Beliefs</div>
+        <div class="everyday-info">
+          <h1>NIA <span class="conn-dot" id="everyday-conn-dot"></span></h1>
+          <div class="status" id="everyday-status">Connecting...</div>
         </div>
-        <div class="stat-box">
-          <div class="stat-value" id="stat-scars">0</div>
-          <div class="stat-label">Scars</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="stat-energy">100%</div>
-          <div class="stat-label">Energy</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="stat-state">Normal</div>
-          <div class="stat-label">State</div>
-        </div>
+        <button class="mode-toggle" onclick="switchMode('debug')">🔧 Debug Mode</button>
       </div>
-      
-      <div class="sidebar-section">
-        <h3>🔍 Diagnostics</h3>
-        <button class="diag-btn" onclick="runDiagnostic('status')">💻 Daemon Status</button>
-        <button class="diag-btn" onclick="runDiagnostic('cognitive_state')">🧠 Cognitive State</button>
-        <button class="diag-btn" onclick="runDiagnostic('beliefs_full')">💭 Show All Beliefs</button>
-        <button class="diag-btn" onclick="runDiagnostic('scars')">✨ Show Scars</button>
-        <button class="diag-btn" onclick="runDiagnostic('thinking_stats')">📊 Thinking Stats</button>
-        <button class="diag-btn" onclick="runDiagnostic('recent_thinking')">📝 Recent Thinking</button>
+      <div class="everyday-messages" id="everyday-messages">
+        <div class="msg system">Hey! I'm NIA. What's on your mind? 💛</div>
       </div>
-      
-      <div class="sidebar-section">
-        <h3>⚡ Actions</h3>
-        <button class="diag-btn" onclick="runAction('process_beliefs')">🔄 Process Beliefs</button>
-        <button class="diag-btn" onclick="clearChat()">🗑️ Clear Chat</button>
-        <button class="diag-btn" onclick="refreshStats()">🔃 Refresh Stats</button>
+      <div class="everyday-quick">
+        <button class="quick-btn" onclick="toggleQuick('status')">📊 Status</button>
+        <button class="quick-btn" onclick="toggleQuick('mood')">🔮 Mood</button>
+        <button class="quick-btn" onclick="toggleQuick('memories')">💾 Memories</button>
+        <button class="quick-btn danger" onclick="deleteLastMessage()">⏪ Undo</button>
+        <button class="quick-btn danger" onclick="viewHistory()">👁️ History</button>
       </div>
-    </div>
-    
-    <!-- Main chat area -->
-    <div id="main">
-      <div id="messages">
-        <div class="message system">Welcome! NIA is starting up...</div>
+      <div class="quick-expand" id="quick-expand" style="display:none;">
+        <div class="quick-expand-content" id="quick-expand-content"></div>
+        <button class="quick-close" onclick="closeQuickExpand()">✕</button>
       </div>
-      
-      <div id="input-area">
-        <textarea id="chat-input" rows="1" placeholder="Type a message..."></textarea>
-        <button id="send-btn" onclick="sendMessage()">Send</button>
+      <div class="everyday-input">
+        <textarea id="everyday-input" placeholder="Type a message..." rows="1"></textarea>
+        <button onclick="sendEveryday()">Send 💬</button>
       </div>
     </div>
   </div>
+
+  <!-- =============== DEBUG MODE =============== -->
+  <div id="app-debug">
+    <div id="debug-nav">
+      <div id="debug-logo"><h1>NIA</h1><div class="tagline">Debug Console</div></div>
+      <div id="debug-nav-items">
+        <div class="debug-nav-item active" onclick="navTo('chat',this)">💬 Chat</div>
+        <div class="debug-nav-item" onclick="navTo('beliefs',this)">🧠 Beliefs</div>
+        <div class="debug-nav-item" onclick="navTo('memories',this)">💾 Memories</div>
+        <div class="debug-nav-item" onclick="navTo('cognitive',this)">🔮 Cognitive</div>
+        <div class="debug-nav-item" onclick="navTo('services',this)">⚙️ Services</div>
+        <div class="debug-nav-item" onclick="navTo('database',this)">🗄️ Database</div>
+        <div class="debug-nav-item" onclick="navTo('search',this)">🔍 Semantic</div>
+        <div class="debug-nav-item" onclick="navTo('extraction',this)">⚗️ Extraction</div>
+        <div class="debug-nav-item" onclick="navTo('logs',this)">📋 Logs</div>
+        <div class="debug-nav-item" onclick="navTo('advanced',this)">🛠️ Advanced</div>
+        <div class="debug-nav-item" onclick="navTo('debugtools',this)">🔬 Debug Tools</div>
+        <div class="debug-nav-item" onclick="navTo('beliefspace',this)">🌌 Belief Space</div>
+      </div>
+      <div id="debug-status-bar">
+        <div><span class="debug-status-dot" id="debug-status-dot"></span> <span id="debug-status-text">Ready</span></div>
+        <button class="dbtn dbtn-sm dbtn-warning" style="margin-top:10px;width:100%;" onclick="switchMode('everyday')">☀️ Everyday Mode</button>
+      </div>
+    </div>
+    
+    <div id="debug-content">
+      <!-- LIVE RESPONSE VIEWER -->
+      <div id="response-viewer" class="response-viewer">
+        <div class="response-header" onclick="toggleResponseViewer()">
+          <span>📡 Last API Response</span>
+          <span id="response-cmd">--</span>
+          <span id="response-status">--</span>
+          <span id="response-toggle">▼</span>
+        </div>
+        <div class="response-body" id="response-body"></div>
+      </div>
+      
+      <!-- ===== CHAT PAGE ===== -->
+      <div class="debug-page active" id="page-chat">
+        <div class="debug-page-header">
+          <div><h2>💬 Chat</h2><div class="subtitle">Debug conversation interface</div></div>
+          <div>
+            <button class="dbtn dbtn-sm dbtn-danger" onclick="deleteLastMessage()">⏪ Delete Last</button>
+            <button class="dbtn dbtn-sm dbtn-secondary" onclick="viewHistory()">👁️ History</button>
+            <button class="dbtn dbtn-sm dbtn-secondary" onclick="clearChatView()">🗑️ Clear View</button>
+          </div>
+        </div>
+        <div id="debug-chat-messages"></div>
+        <div id="debug-chat-input-area">
+          <textarea id="debug-chat-input" class="debug-textarea" placeholder="Message NIA..."></textarea>
+          <button class="dbtn dbtn-primary" onclick="sendDebug()">Send</button>
+        </div>
+      </div>
+
+      <!-- ===== BELIEFS PAGE ===== -->
+      <div class="debug-page" id="page-beliefs">
+        <div class="debug-page-header"><div><h2>🧠 Beliefs</h2><div class="subtitle">View, search, and manage beliefs</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Statistics</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadBeliefStats()">🔄 Refresh</button>
+            </div>
+            <div class="debug-grid debug-grid-4">
+              <div class="debug-stat-card"><div class="debug-stat-label">Total Active</div><div class="debug-stat-value" id="beliefs-total">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Core</div><div class="debug-stat-value" id="beliefs-core">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Emerging</div><div class="debug-stat-value" id="beliefs-emerging">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Avg Conviction</div><div class="debug-stat-value" id="beliefs-avg">--%</div></div>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Search Beliefs</div>
+            </div>
+            <div class="input-group">
+              <input type="text" id="belief-search-input" class="debug-input" placeholder="Search by keyword...">
+              <button class="dbtn dbtn-primary" onclick="searchBeliefs()">🔍 Search</button>
+            </div>
+            <div id="belief-search-results" class="results-box" style="display:none;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Browser</div>
+              <div>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadBeliefsBrowser()">📋 Load All</button>
+                <button class="dbtn dbtn-sm dbtn-primary" onclick="embedAllBeliefs()">⚡ Embed All</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="resetTable('beliefs')">🗑️ Reset</button>
+              </div>
+            </div>
+            <div id="beliefs-browser"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MEMORIES PAGE ===== -->
+      <div class="debug-page" id="page-memories">
+        <div class="debug-page-header"><div><h2>💾 Memories</h2><div class="subtitle">Commit, browse, and search memories</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Statistics</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadMemoryStats()">🔄 Refresh</button>
+            </div>
+            <div class="debug-grid debug-grid-4">
+              <div class="debug-stat-card"><div class="debug-stat-label">Total</div><div class="debug-stat-value" id="mem-total">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Embedder</div><div class="debug-stat-value" id="mem-embedder" style="font-size:18px;">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Semantic</div><div class="debug-stat-value" id="mem-semantic" style="font-size:18px;">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">In Qdrant</div><div class="debug-stat-value" id="mem-qdrant" style="font-size:18px;">--</div></div>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Commit Memory</div></div>
+            <textarea id="mem-statement" class="debug-textarea" placeholder="What should NIA remember?"></textarea>
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+              <select id="mem-type" class="debug-select" style="width:auto;">
+                <option value="observation">Observation</option>
+                <option value="fact">Fact</option>
+                <option value="preference">Preference</option>
+                <option value="event">Event</option>
+                <option value="realization">Realization</option>
+              </select>
+              <button class="dbtn dbtn-primary" onclick="commitMemory()">💾 Commit</button>
+              <button class="dbtn dbtn-success" onclick="testMemoryCommit()">🧪 Test Commit</button>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Recall / Search</div>
+            </div>
+            <div class="input-group">
+              <input type="text" id="mem-query" class="debug-input" placeholder="Search memories...">
+              <button class="dbtn dbtn-primary" onclick="recallMemories()">🔍 Recall</button>
+            </div>
+            <div id="mem-recall-results" class="results-box" style="display:none;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Browser</div>
+              <div>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadMemoriesBrowser()">📋 Load</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="resetTable('memory_commits')">🗑️ Reset</button>
+              </div>
+            </div>
+            <div id="memories-browser"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== COGNITIVE PAGE ===== -->
+      <div class="debug-page" id="page-cognitive">
+        <div class="debug-page-header"><div><h2>🔮 Cognitive State</h2><div class="subtitle">Monitor energy, load, and extraction</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Current State</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadCognitiveState()">🔄 Refresh</button>
+            </div>
+            <div class="debug-grid debug-grid-3">
+              <div class="debug-stat-card"><div class="debug-stat-label">Energy</div><div class="debug-stat-value" id="cog-energy">--</div><div class="debug-stat-sub">out of 100</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">State</div><div class="debug-stat-value" id="cog-state" style="font-size:18px;">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Feeling</div><div class="debug-stat-value" id="cog-feeling" style="font-size:18px;">--</div></div>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Load & Budget</div></div>
+            <div class="debug-grid debug-grid-3">
+              <div class="debug-stat-card"><div class="debug-stat-label">Fatigue</div><div class="debug-stat-value" id="cog-fatigue">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Budget</div><div class="debug-stat-value" id="cog-budget">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Extractions Today</div><div class="debug-stat-value" id="cog-extractions">--</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SERVICES PAGE ===== -->
+      <div class="debug-page" id="page-services">
+        <div class="debug-page-header">
+          <div><h2>⚙️ Services</h2><div class="subtitle">Monitor and control services</div></div>
+          <button class="dbtn dbtn-sm dbtn-secondary" onclick="checkAllServices()">🔄 Check All</button>
+        </div>
+        <div class="debug-page-body">
+          <div class="alert alert-warning">⚠️ Start/Stop/Restart require admin privileges and may not work from web UI</div>
+          <div class="debug-grid debug-grid-2">
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">NIA Daemon</div><div class="service-status unknown" id="svc-daemon">Unknown</div></div>
+              <div class="service-info">Main IPC process • Port 19700</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-success" onclick="svcAction('daemon','start')">▶️</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="svcAction('daemon','stop')">⏹️</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('daemon','restart')">🔄</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('daemon','check')">🔍</button>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">Memory Embedder</div><div class="service-status unknown" id="svc-mem-emb">Unknown</div></div>
+              <div class="service-info">Python embedding • Port 5001</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-success" onclick="svcAction('memory-embedder','start')">▶️</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="svcAction('memory-embedder','stop')">⏹️</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('memory-embedder','restart')">🔄</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('memory-embedder','check')">🔍</button>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">Belief Embedder</div><div class="service-status unknown" id="svc-bel-emb">Unknown</div></div>
+              <div class="service-info">Poincaré embedding • Port 5002</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-success" onclick="svcAction('belief-embedder','start')">▶️</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="svcAction('belief-embedder','stop')">⏹️</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('belief-embedder','restart')">🔄</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('belief-embedder','check')">🔍</button>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">Qdrant</div><div class="service-status unknown" id="svc-qdrant">Unknown</div></div>
+              <div class="service-info">Vector database • Port 6333</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-success" onclick="svcAction('qdrant','start')">▶️</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="svcAction('qdrant','stop')">⏹️</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('qdrant','restart')">🔄</button>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('qdrant','check')">🔍</button>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">LM Studio</div><div class="service-status unknown" id="svc-lm">Unknown</div></div>
+              <div class="service-info">Local LLM • Port 1234</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="svcAction('lm-studio','check')">🔍 Check</button>
+              </div>
+            </div>
+            <div class="service-card">
+              <div class="service-header"><div class="service-name">Vector Modules</div><div class="service-status unknown" id="svc-vector">Unknown</div></div>
+              <div class="service-info">Node.js require() paths</div>
+              <div class="service-actions">
+                <button class="dbtn dbtn-sm dbtn-primary" onclick="debugPaths()">📂 Path Debug</button>
+                <button class="dbtn dbtn-sm dbtn-success" onclick="reinitServices()">♻️ Reinit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DATABASE PAGE ===== -->
+      <div class="debug-page" id="page-database">
+        <div class="debug-page-header"><div><h2>🗄️ Database</h2><div class="subtitle">Browse and manage tables</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Overview</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadDbStats()">🔄 Refresh</button>
+            </div>
+            <div class="debug-grid debug-grid-4">
+              <div class="debug-stat-card"><div class="debug-stat-label">Tables</div><div class="debug-stat-value" id="db-tables">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Size</div><div class="debug-stat-value" id="db-size" style="font-size:18px;">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Beliefs</div><div class="debug-stat-value" id="db-beliefs">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Memories</div><div class="debug-stat-value" id="db-memories">--</div></div>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Table Browser</div></div>
+            <select id="db-table-select" class="debug-select" onchange="browseTable(this.value)" style="margin-bottom:15px;">
+              <option value="">Select a table...</option>
+              <option value="memory_commits">memory_commits</option>
+              <option value="beliefs">beliefs</option>
+              <option value="thinking_log">thinking_log</option>
+              <option value="conversation_sessions">conversation_sessions</option>
+              <option value="conversation_turns">conversation_turns</option>
+              <option value="identity_scars">identity_scars</option>
+              <option value="cognitive_state">cognitive_state</option>
+              <option value="extraction_queue">extraction_queue</option>
+            </select>
+            <div id="db-browser"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Custom SQL</div></div>
+            <textarea id="custom-sql" class="debug-textarea" placeholder="SELECT * FROM beliefs LIMIT 10;" style="font-family:monospace;"></textarea>
+            <div style="margin-top:10px;"><button class="dbtn dbtn-primary" onclick="runSQL()">▶️ Execute</button></div>
+            <div id="sql-results" class="results-box" style="display:none;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">⚠️ Danger Zone</div></div>
+            <div class="alert alert-danger">These operations PERMANENTLY DELETE data. Cannot be undone!</div>
+            <div class="debug-grid debug-grid-3" style="margin-top:10px;">
+              <button class="dbtn dbtn-danger" onclick="resetTable('memory_commits')">🗑️ Reset Memories</button>
+              <button class="dbtn dbtn-danger" onclick="resetTable('thinking_log')">🗑️ Reset Thinking</button>
+              <button class="dbtn dbtn-danger" onclick="resetTable('conversation_sessions')">🗑️ Reset Sessions</button>
+              <button class="dbtn dbtn-danger" onclick="resetTable('beliefs')">🗑️ Reset Beliefs</button>
+              <button class="dbtn dbtn-danger" onclick="resetTable('identity_scars')">🗑️ Reset Scars</button>
+              <button class="dbtn dbtn-danger" style="background:#7f1d1d;" onclick="wipeAll()">☢️ WIPE ALL TEST</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SEMANTIC SEARCH PAGE ===== -->
+      <div class="debug-page" id="page-search">
+        <div class="debug-page-header"><div><h2>🔍 Semantic Search</h2><div class="subtitle">Vector-based similarity search</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Search Beliefs</div></div>
+            <div class="input-group">
+              <input type="text" id="sem-belief-query" class="debug-input" placeholder="Semantic query for beliefs...">
+              <input type="number" id="sem-belief-limit" class="debug-input" value="10" min="1" max="50" style="width:80px;">
+              <button class="dbtn dbtn-primary" onclick="semanticSearchBeliefs()">🔍 Search</button>
+            </div>
+            <div id="sem-belief-results" class="results-box" style="display:none;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Search Memories</div></div>
+            <div class="input-group">
+              <input type="text" id="sem-mem-query" class="debug-input" placeholder="Semantic query for memories...">
+              <input type="number" id="sem-mem-limit" class="debug-input" value="10" min="1" max="50" style="width:80px;">
+              <button class="dbtn dbtn-primary" onclick="semanticSearchMemories()">🔍 Search</button>
+            </div>
+            <div id="sem-mem-results" class="results-box" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== EXTRACTION PAGE ===== -->
+      <div class="debug-page" id="page-extraction">
+        <div class="debug-page-header"><div><h2>⚗️ Extraction Queue</h2><div class="subtitle">Monitor belief extraction</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Queue Status</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadExtractionQueue()">🔄 Refresh</button>
+            </div>
+            <div class="debug-grid debug-grid-3">
+              <div class="debug-stat-card"><div class="debug-stat-label">Pending</div><div class="debug-stat-value" id="queue-pending">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">High Priority</div><div class="debug-stat-value" id="queue-priority">--</div></div>
+              <div class="debug-stat-card"><div class="debug-stat-label">Processed Today</div><div class="debug-stat-value" id="queue-processed">--</div></div>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">Queue Items</div>
+              <div>
+                <button class="dbtn dbtn-sm dbtn-primary" onclick="processQueue()">⚡ Process Queue</button>
+                <button class="dbtn dbtn-sm dbtn-danger" onclick="clearQueue()">🗑️ Clear Queue</button>
+              </div>
+            </div>
+            <div id="queue-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== LOGS PAGE ===== -->
+      <div class="debug-page" id="page-logs">
+        <div class="debug-page-header">
+          <div><h2>📋 System Logs</h2><div class="subtitle">Real-time operation trace</div></div>
+          <button class="dbtn dbtn-sm dbtn-secondary" onclick="clearLogs()">🗑️ Clear</button>
+        </div>
+        <div class="debug-page-body"><div id="logs-container"></div></div>
+      </div>
+
+      <!-- ===== ADVANCED PAGE ===== -->
+      <div class="debug-page" id="page-advanced">
+        <div class="debug-page-header"><div><h2>🛠️ Advanced Tools</h2><div class="subtitle">Testing and diagnostics</div></div></div>
+        <div class="debug-page-body">
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">🔌 Quick API Test</div></div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+              <input type="text" id="api-test-cmd" class="debug-input" placeholder="beliefs" style="flex:1;">
+              <button class="dbtn dbtn-primary" onclick="testApiCmd()">Test</button>
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">
+              Try: status, beliefs, beliefs_full, belief_stats, memory_stats, cognitive_state, debug_full, db_stats
+            </div>
+            <div id="api-test-result" class="results-box" style="display:none;max-height:300px;overflow:auto;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Manual Belief Extraction</div></div>
+            <textarea id="extract-text" class="debug-textarea" placeholder="Enter text to extract beliefs from..."></textarea>
+            <div style="margin-top:10px;"><button class="dbtn dbtn-primary" onclick="manualExtract()">⚡ Extract Beliefs</button></div>
+            <div id="extract-results" class="results-box" style="display:none;"></div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">System Tests</div></div>
+            <div class="debug-grid debug-grid-3">
+              <button class="dbtn dbtn-secondary" onclick="testEmbedding()">✨ Test Embedding</button>
+              <button class="dbtn dbtn-secondary" onclick="testMemoryCommit()">💾 Test Memory</button>
+              <button class="dbtn dbtn-secondary" onclick="testRecall()">🔍 Test Recall</button>
+              <button class="dbtn dbtn-secondary" onclick="testChain()">🔗 Module Chain</button>
+              <button class="dbtn dbtn-secondary" onclick="debugPaths()">📂 Path Debug</button>
+              <button class="dbtn dbtn-primary" onclick="fullDebug()">🚨 Full Debug</button>
+            </div>
+          </div>
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">Database Backup</div></div>
+            <div class="debug-grid debug-grid-2">
+              <button class="dbtn dbtn-success" onclick="backupDb()">💾 Create Backup</button>
+              <button class="dbtn dbtn-warning" onclick="restoreDb()">📥 Restore Backup</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DEBUG TOOLS PAGE ===== -->
+      <div class="debug-page" id="page-debugtools">
+        <div class="debug-page-header"><div><h2>🔬 Debug Tools</h2><div class="subtitle">Comprehensive memory & embedding diagnostics</div></div></div>
+        <div class="debug-page-body">
+          
+          <!-- SYSTEM HEALTH -->
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">🏥 System Health Check</div>
+              <button class="dbtn dbtn-sm dbtn-primary" onclick="runFullDiagnostic()">▶️ Run Full Diagnostic</button>
+            </div>
+            <div class="debug-grid debug-grid-4">
+              <div class="debug-stat-card">
+                <div class="debug-stat-label">Memory Embedder (5001)</div>
+                <div class="debug-stat-value" id="diag-mem-emb" style="font-size:16px;">--</div>
+              </div>
+              <div class="debug-stat-card">
+                <div class="debug-stat-label">Belief Embedder (5002)</div>
+                <div class="debug-stat-value" id="diag-bel-emb" style="font-size:16px;">--</div>
+              </div>
+              <div class="debug-stat-card">
+                <div class="debug-stat-label">Qdrant (6333)</div>
+                <div class="debug-stat-value" id="diag-qdrant" style="font-size:16px;">--</div>
+              </div>
+              <div class="debug-stat-card">
+                <div class="debug-stat-label">LM Studio (1234)</div>
+                <div class="debug-stat-value" id="diag-lm" style="font-size:16px;">--</div>
+              </div>
+            </div>
+            <div id="diag-results" class="results-box" style="display:none;margin-top:15px;"></div>
+          </div>
+
+          <!-- DIRECT EMBEDDING TEST -->
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">✨ Direct Embedding Test</div></div>
+            <div class="input-group">
+              <input type="text" id="emb-test-text" class="debug-input" placeholder="Text to embed..." value="I really enjoy sunny days at the park">
+              <select id="emb-test-type" class="debug-select" style="width:150px;">
+                <option value="memory">Memory (5001)</option>
+                <option value="belief">Belief (5002)</option>
+              </select>
+              <button class="dbtn dbtn-primary" onclick="testDirectEmbedding()">⚡ Embed</button>
+            </div>
+            <div id="emb-test-results" class="results-box" style="display:none;"></div>
+          </div>
+
+          <!-- MEMORY RECALL TEST -->
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">🔍 Memory Recall Test</div></div>
+            <div class="input-group">
+              <input type="text" id="recall-test-query" class="debug-input" placeholder="what do I like?">
+              <input type="number" id="recall-test-limit" class="debug-input" value="10" min="1" max="50" style="width:80px;">
+              <button class="dbtn dbtn-primary" onclick="testMemoryRecall()">🔍 Recall</button>
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:5px;">Tests hybrid recall: keyword (FTS) + semantic (Qdrant) merge</div>
+            <div id="recall-test-results" class="results-box" style="display:none;"></div>
+          </div>
+
+          <!-- RELEVANCE SCORING TEST -->
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">📊 Relevance Scoring Test</div></div>
+            <div class="input-group">
+              <input type="text" id="relevance-query" class="debug-input" placeholder="what does gloomie like?">
+              <button class="dbtn dbtn-primary" onclick="testRelevanceScoring()">📊 Score</button>
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:5px;">Tests if relevance scorer properly filters memories for query</div>
+            <div id="relevance-results" class="results-box" style="display:none;"></div>
+          </div>
+
+          <!-- MEMORY BROWSER WITH DETAILS -->
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">💾 Memory Browser (Detailed)</div>
+              <div>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadDetailedMemories()">📋 Load All</button>
+                <button class="dbtn dbtn-sm dbtn-success" onclick="testMemoryRoundtrip()">🔄 Test Roundtrip</button>
+              </div>
+            </div>
+            <div id="detailed-memories-browser"></div>
+          </div>
+
+          <!-- BELIEF BROWSER WITH DETAILS -->
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">🧠 Belief Browser (Detailed)</div>
+              <div>
+                <select id="belief-filter-holder" class="debug-select" style="width:120px;" onchange="loadDetailedBeliefs()">
+                  <option value="">All Holders</option>
+                  <option value="self">Self (NIA)</option>
+                  <option value="user">User</option>
+                </select>
+                <select id="belief-filter-subject" class="debug-select" style="width:120px;" onchange="loadDetailedBeliefs()">
+                  <option value="">All Subjects</option>
+                </select>
+                <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadDetailedBeliefs()">📋 Load</button>
+              </div>
+            </div>
+            <div id="detailed-beliefs-browser"></div>
+          </div>
+
+          <!-- QDRANT COLLECTIONS -->
+          <div class="debug-section">
+            <div class="debug-section-header">
+              <div class="debug-section-title">📦 Qdrant Collections</div>
+              <button class="dbtn dbtn-sm dbtn-secondary" onclick="loadQdrantCollections()">🔄 Refresh</button>
+            </div>
+            <div id="qdrant-collections"></div>
+          </div>
+
+          <!-- RAW QUERY -->
+          <div class="debug-section">
+            <div class="debug-section-header"><div class="debug-section-title">🔧 Raw IPC Commands</div></div>
+            <div class="input-group">
+              <input type="text" id="raw-ipc-cmd" class="debug-input" placeholder="memory_system_status" style="flex:1;">
+              <textarea id="raw-ipc-data" class="debug-textarea" placeholder='{"key": "value"}' style="width:200px;min-height:40px;height:40px;"></textarea>
+              <button class="dbtn dbtn-primary" onclick="sendRawIPC()">▶️ Send</button>
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:5px;">
+              Try: memory_system_status, recall_memories, relevance_scorer_status, conversation_archive_stats, search_conversations
+            </div>
+            <div id="raw-ipc-results" class="results-box" style="display:none;"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== BELIEF SPACE 3D PAGE ===== -->
+      <div class="debug-page" id="page-beliefspace">
+        <div class="debug-page-header">
+          <div><h2>🌌 Belief Space</h2><div class="subtitle">3D visualization of NIA's mind using Poincaré embeddings</div></div>
+          <div>
+            <button class="dbtn dbtn-sm dbtn-secondary" onclick="refreshBeliefSpace()">🔄 Refresh</button>
+            <button class="dbtn dbtn-sm dbtn-primary" onclick="toggleBeliefSpaceFullscreen()">⛶ Fullscreen</button>
+          </div>
+        </div>
+        <div class="belief-space-container">
+          <div class="belief-space-sidebar">
+            <div class="bs-info">
+              <strong>How to explore:</strong><br>
+              • Drag to rotate<br>
+              • Scroll to zoom<br>
+              • Click beliefs for details<br>
+              • Distance from center = identity centrality
+            </div>
+            
+            <div class="bs-section-title">Statistics</div>
+            <div class="bs-stat">
+              <span class="bs-stat-label">Total Beliefs</span>
+              <span class="bs-stat-value" id="bs-total">--</span>
+            </div>
+            <div class="bs-stat">
+              <span class="bs-stat-label">Visible</span>
+              <span class="bs-stat-value" id="bs-visible">--</span>
+            </div>
+            <div class="bs-stat">
+              <span class="bs-stat-label">With Embeddings</span>
+              <span class="bs-stat-value" id="bs-embedded">--</span>
+            </div>
+            <div class="bs-stat">
+              <span class="bs-stat-label">Avg Conviction</span>
+              <span class="bs-stat-value" id="bs-avg-conviction">--%</span>
+            </div>
+            
+            <div class="bs-section-title">Filters</div>
+            
+            <div class="bs-filter-group">
+              <label class="bs-filter-label">Belief Types</label>
+              <div class="bs-type-filters" id="bs-type-filters"></div>
+            </div>
+            
+            <div class="bs-filter-group">
+              <label class="bs-filter-label">Holder</label>
+              <div class="bs-type-filters">
+                <div class="bs-type-badge active" style="background:#a78bfa;" data-holder="all" onclick="toggleBeliefHolder(this)">All</div>
+                <div class="bs-type-badge active" style="background:#3b82f6;" data-holder="self" onclick="toggleBeliefHolder(this)">Self</div>
+                <div class="bs-type-badge active" style="background:#10b981;" data-holder="user" onclick="toggleBeliefHolder(this)">User</div>
+              </div>
+            </div>
+            
+            <div class="bs-filter-group">
+              <label class="bs-filter-label">Min Conviction: <span id="bs-min-conv-val">0%</span></label>
+              <input type="range" class="bs-slider" id="bs-min-conviction" min="0" max="100" value="0" step="5" oninput="updateBeliefConvictionFilter(this.value)">
+            </div>
+            
+            <div class="bs-legend">
+              <div class="bs-section-title">Legend</div>
+              <div class="bs-legend-item"><div class="bs-legend-color" style="background:#ef4444;"></div>Identity / Core</div>
+              <div class="bs-legend-item"><div class="bs-legend-color" style="background:#f59e0b;"></div>Values / Principles</div>
+              <div class="bs-legend-item"><div class="bs-legend-color" style="background:#10b981;"></div>Preferences</div>
+              <div class="bs-legend-item"><div class="bs-legend-color" style="background:#3b82f6;"></div>Facts / Causal</div>
+              <div class="bs-legend-item"><div class="bs-legend-color" style="background:#8b5cf6;"></div>Other</div>
+              <div class="bs-legend-item" style="margin-top:10px;"><div class="bs-legend-color" style="background:#a78bfa;border:2px solid white;"></div>Identity Core (center)</div>
+            </div>
+            
+            <div style="margin-top:30px;padding-top:15px;border-top:1px solid #2a2a3a;font-size:10px;color:#6b7280;text-align:center;">
+              Poincaré Hyperbolic Embeddings<br>
+              Projected to 3D Euclidean Space
+            </div>
+          </div>
+          
+          <div class="belief-space-main">
+            <div class="bs-loading" id="bs-loading">
+              <div class="bs-spinner"></div>
+              Loading belief space...
+            </div>
+            <div class="belief-space-plot" id="bs-plot"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 id="modal-title">Modal</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+<script>
+// =============== GLOBALS ===============
+let logs = [], currentTable = null;
+let chatMessages = []; // Shared between modes
+let daemonUptime = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// =============== MODE & NAV ===============
+function switchMode(mode) {
+  document.body.className = mode;
+  log('INFO', `Switched to ${mode} mode`);
   
-  <script>
-    // State
-    let isWaiting = false;
-    let ws = null;
+  // Sync chat history to the new mode's display
+  syncChatDisplay();
+  
+  if (mode === 'debug') { 
+    checkAllServices(); 
+    loadCognitiveState(); 
+  }
+}
+
+// Sync chat messages to both displays
+function syncChatDisplay() {
+  // Clear both displays first (except initial greeting)
+  const everydayMsgs = $('everyday-messages');
+  const debugMsgs = $('debug-chat-messages');
+  
+  everydayMsgs.innerHTML = '';
+  debugMsgs.innerHTML = '';
+  
+  // Re-render all messages
+  chatMessages.forEach(msg => {
+    // Add to everyday display
+    const evEl = document.createElement('div');
+    evEl.className = `msg ${msg.type}`;
+    evEl.textContent = msg.content;
+    everydayMsgs.appendChild(evEl);
     
-    // Elements
-    const messagesEl = document.getElementById('messages');
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('send-btn');
-    const statusEl = document.getElementById('status');
-    const energyFill = document.getElementById('energy-fill');
-    const header = document.getElementById('header');
+    // Add to debug display
+    const dbEl = document.createElement('div');
+    dbEl.className = `debug-msg ${msg.type}`;
+    dbEl.textContent = msg.content;
+    debugMsgs.appendChild(dbEl);
+  });
+  
+  // Scroll both to bottom
+  everydayMsgs.scrollTop = everydayMsgs.scrollHeight;
+  debugMsgs.scrollTop = debugMsgs.scrollHeight;
+}
+
+function navTo(page, el) {
+  document.querySelectorAll('.debug-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.debug-page').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  $(`page-${page}`).classList.add('active');
+  
+  // Auto-refresh data for the page
+  switch(page) {
+    case 'beliefs': loadBeliefStats(); break;
+    case 'memories': loadMemoryStats(); break;
+    case 'cognitive': loadCognitiveState(); break;
+    case 'services': checkAllServices(); break;
+    case 'database': loadDbStats(); break;
+    case 'extraction': loadExtractionQueue(); break;
+  }
+}
+
+// =============== LOGGING ===============
+function log(level, msg, detail) {
+  const time = new Date().toLocaleTimeString();
+  const entry = { time, level, msg, detail };
+  logs.unshift(entry);
+  if (logs.length > 300) logs.pop();
+  
+  const c = $('logs-container');
+  if (c) {
+    const el = document.createElement('div');
+    el.className = 'log-entry';
+    el.innerHTML = `<span class="log-time">${time}</span><span class="log-level ${level}">${level}</span><span class="log-msg">${esc(msg)}</span>`;
+    if (detail) el.onclick = () => showModal(msg, detail);
+    el.style.cursor = detail ? 'pointer' : 'default';
+    c.insertBefore(el, c.firstChild);
+  }
+}
+
+function clearLogs() { logs = []; $('logs-container').innerHTML = ''; log('INFO', 'Logs cleared'); }
+
+// =============== API WITH TRACING ===============
+async function api(cmd, data = {}, silent = false, timeoutMs = 60000) {
+  const trace = { cmd, request: data, timestamp: new Date().toISOString() };
+  if (!silent) log('INFO', `→ ${cmd}`, trace);
+  
+  // Update response viewer header
+  $('response-cmd').textContent = cmd;
+  $('response-status').textContent = '...';
+  $('response-status').className = '';
+  
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const res = await fetch(`/api/${cmd}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
     
-    // Connect WebSocket for real-time updates
-    function connectWebSocket() {
-      ws = new WebSocket('ws://localhost:3000');
-      
-      ws.onopen = () => {
-        console.log('WebSocket connected');
+    clearTimeout(timeoutId);
+    
+    trace.status = res.status;
+    trace.statusText = res.statusText;
+    
+    if (!res.ok) {
+      trace.error = `HTTP ${res.status}: ${res.statusText}`;
+      log('ERROR', `${cmd}: HTTP ${res.status}`, trace);
+      updateResponseViewer(cmd, { error: trace.error }, false);
+      return { error: trace.error, _trace: trace };
+    }
+    
+    const json = await res.json();
+    trace.response = json;
+    
+    const hasError = json.error;
+    if (hasError) {
+      log('ERROR', `${cmd}: ${json.error}`, trace);
+    } else if (!silent) {
+      log('OK', `${cmd} ✓`, trace);
+    }
+    
+    // Always update response viewer
+    updateResponseViewer(cmd, json, !hasError);
+    
+    json._trace = trace;
+    return json;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err.name === 'AbortError';
+    const errMsg = isTimeout ? `Timeout after ${timeoutMs/1000}s - daemon not responding` : err.message;
+    trace.error = errMsg;
+    trace.stack = err.stack;
+    log('ERROR', `${cmd}: ${errMsg}`, trace);
+    updateResponseViewer(cmd, { error: errMsg, timeout: isTimeout }, false);
+    return { error: errMsg, timeout: isTimeout, _trace: trace };
+  }
+}
+
+function updateResponseViewer(cmd, data, ok) {
+  $('response-cmd').textContent = cmd;
+  $('response-status').textContent = ok ? 'OK' : 'ERROR';
+  $('response-status').className = ok ? 'ok' : 'err';
+  
+  // Remove _trace for cleaner display
+  const display = { ...data };
+  delete display._trace;
+  
+  $('response-body').textContent = JSON.stringify(display, null, 2);
+}
+
+function toggleResponseViewer() {
+  const body = $('response-body');
+  const toggle = $('response-toggle');
+  body.classList.toggle('show');
+  toggle.textContent = body.classList.contains('show') ? '▲' : '▼';
+}
+
+// =============== MODAL ===============
+function showModal(title, data) {
+  $('modal-title').textContent = title;
+  $('modal-body').textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  $('modal').classList.add('show');
+}
+function closeModal() { $('modal').classList.remove('show'); }
+
+// =============== EVERYDAY MODE ===============
+async function sendEveryday() {
+  const input = $('everyday-input'), text = input.value.trim();
+  if (!text) return;
+  
+  // Add to shared history and display
+  addChatMessage(text, 'user');
+  input.value = '';
+  
+  const typing = document.createElement('div');
+  typing.className = 'msg assistant';
+  typing.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  $('everyday-messages').appendChild(typing);
+  $('everyday-messages').scrollTop = $('everyday-messages').scrollHeight;
+  
+  const data = await api('chat', { message: text });
+  typing.remove();
+  
+  if (data.error) {
+    addChatMessage(`Error: ${data.error}`, 'system');
+  } else {
+    addChatMessage(data.response || 'No response', data.success ? 'assistant' : 'system');
+  }
+}
+
+// Add message to shared history and both displays
+function addChatMessage(content, type) {
+  chatMessages.push({ content, type, time: Date.now() });
+  
+  // Add to everyday display
+  const evEl = document.createElement('div');
+  evEl.className = `msg ${type}`;
+  evEl.textContent = content;
+  $('everyday-messages').appendChild(evEl);
+  $('everyday-messages').scrollTop = $('everyday-messages').scrollHeight;
+  
+  // Add to debug display
+  const dbEl = document.createElement('div');
+  dbEl.className = `debug-msg ${type}`;
+  dbEl.textContent = content;
+  $('debug-chat-messages').appendChild(dbEl);
+  $('debug-chat-messages').scrollTop = $('debug-chat-messages').scrollHeight;
+}
+
+function addEverydayMsg(content, type) {
+  addChatMessage(content, type);
+}
+
+async function quickCmd(cmd) {
+  const data = await api(cmd);
+  showModal(cmd.toUpperCase(), data);
+}
+
+// =============== QUICK EXPAND (EVERYDAY) ===============
+let currentQuickPanel = null;
+
+async function toggleQuick(type) {
+  const panel = $('quick-expand');
+  const content = $('quick-expand-content');
+  
+  // If same panel is open, close it
+  if (currentQuickPanel === type && panel.style.display !== 'none') {
+    closeQuickExpand();
+    return;
+  }
+  
+  currentQuickPanel = type;
+  content.innerHTML = '<div style="color:#92400e;">Loading...</div>';
+  panel.style.display = 'block';
+  
+  try {
+    if (type === 'status') {
+      const data = await api('status', {}, true);
+      content.innerHTML = formatStatusPanel(data);
+    } else if (type === 'mood') {
+      const data = await api('cognitive_state', {}, true);
+      content.innerHTML = formatMoodPanel(data);
+    } else if (type === 'memories') {
+      const data = await api('memory_stats', {}, true);
+      content.innerHTML = formatMemoriesPanel(data);
+    }
+  } catch (err) {
+    content.innerHTML = `<div style="color:#dc2626;">Error: ${err.message}</div>`;
+  }
+}
+
+function closeQuickExpand() {
+  $('quick-expand').style.display = 'none';
+  currentQuickPanel = null;
+}
+
+function formatStatusPanel(data) {
+  return `
+    <div class="stat-row"><span class="stat-label">Running</span><span class="stat-value">${data.running ? '✅ Yes' : '❌ No'}</span></div>
+    <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value">${data.uptime || '--'}</span></div>
+    <div class="stat-row"><span class="stat-label">IPC Clients</span><span class="stat-value">${data.ipc_clients ?? '--'}</span></div>
+    <div class="stat-row"><span class="stat-label">Ticks</span><span class="stat-value">${data.tick_count ?? '--'}</span></div>
+    <div class="stat-row"><span class="stat-label">Identity</span><span class="stat-value">${data.identity_loaded ? '✅ Loaded' : '❌ Not loaded'}</span></div>
+  `;
+}
+
+function formatMoodPanel(data) {
+  const energyBar = Math.round((data.energy || 0) / 10);
+  const energyFill = '🟨'.repeat(energyBar) + '⬜'.repeat(10 - energyBar);
+  
+  return `
+    <div class="stat-row"><span class="stat-label">Energy</span><span class="stat-value">${data.energy ?? '--'}/100</span></div>
+    <div class="stat-row"><span class="stat-label"></span><span class="stat-value">${energyFill}</span></div>
+    <div class="stat-row"><span class="stat-label">State</span><span class="stat-value">${data.state || '--'}</span></div>
+    <div class="stat-row"><span class="stat-label">Feeling</span><span class="stat-value">${data.feeling || '--'}</span></div>
+    <div class="stat-row"><span class="stat-label">Fatigue</span><span class="stat-value">${data.fatigue ?? '--'}</span></div>
+  `;
+}
+
+function formatMemoriesPanel(data) {
+  return `
+    <div class="stat-row"><span class="stat-label">Total Memories</span><span class="stat-value">${data.total ?? 0}</span></div>
+    <div class="stat-row"><span class="stat-label">Embedder</span><span class="stat-value">${data.embedderAvailable ? '✅ Ready' : '❌ Offline'}</span></div>
+    <div class="stat-row"><span class="stat-label">Semantic Search</span><span class="stat-value">${data.semanticEnabled ? '✅ Enabled' : '❌ Disabled'}</span></div>
+    <div class="stat-row"><span class="stat-label">In Qdrant</span><span class="stat-value">${data.qdrantCount ?? '--'}</span></div>
+    ${data.error ? `<div class="stat-row"><span class="stat-label">Note</span><span class="stat-value" style="color:#92400e;font-size:11px;">${data.error}</span></div>` : ''}
+  `;
+}
+
+// =============== DEBUG CHAT ===============
+async function sendDebug() {
+  const input = $('debug-chat-input'), text = input.value.trim();
+  if (!text) return;
+  
+  // Add to shared history and display
+  addChatMessage(text, 'user');
+  input.value = '';
+  
+  const data = await api('chat', { message: text });
+  if (data.error) {
+    addChatMessage(`Error: ${data.error}`, 'error');
+  } else {
+    addChatMessage(data.response || 'No response', data.success ? 'assistant' : 'system');
+  }
+}
+
+function addDebugMsg(content, type) {
+  addChatMessage(content, type);
+}
+
+function clearChatView() {
+  chatMessages = [];
+  $('debug-chat-messages').innerHTML = '';
+  $('everyday-messages').innerHTML = '';
+  addChatMessage("Hey! I'm NIA. What's on your mind? 💛", 'system');
+}
+
+// =============== HISTORY / DELETE ===============
+async function deleteLastMessage() {
+  if (!confirm("Delete last message from NIA's memory?")) return;
+  const data = await api('delete_last_message');
+  if (data.success) {
+    const msg = `✅ Deleted: ${data.removed?.role || '?'} - "${data.removed?.preview || '?'}"`;
+    if (document.body.className === 'everyday') addEverydayMsg(msg, 'system');
+    else addDebugMsg(msg, 'system');
+  } else {
+    showModal('Delete Error', data);
+  }
+}
+
+async function viewHistory() {
+  const data = await api('get_conversation_history');
+  showModal('Conversation History', data);
+}
+
+// =============== BELIEFS ===============
+async function loadBeliefStats() {
+  log('TRACE', 'Loading belief stats...');
+  
+  // Try belief_stats first (new daemon), then beliefs (original daemon)
+  let data = await api('belief_stats', {}, true);
+  
+  if (data.error) {
+    log('TRACE', 'belief_stats failed, trying beliefs...');
+    data = await api('beliefs', {}, true);
+    
+    // Original daemon returns {core: [], active: [], emerging: [], total}
+    // Convert to our format
+    if (data.core && Array.isArray(data.core)) {
+      data = {
+        total: data.total || (data.core.length + (data.active?.length || 0) + (data.emerging?.length || 0)),
+        core: data.core.length,
+        emerging: data.emerging?.length || 0,
+        avgConviction: calculateAvgConviction(data)
       };
-      
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        
-        if (msg.type === 'status') {
-          updateStatus(msg.data.status, msg.data.cogState, msg.data.identity);
-        }
-      };
-      
-      ws.onclose = () => {
-        console.log('WebSocket disconnected, reconnecting...');
-        setTimeout(connectWebSocket, 5000);
-      };
+    }
+  }
+  
+  // Even if error, try to show what we got
+  $('beliefs-total').textContent = data.total ?? (data.error ? '⚠️' : '--');
+  $('beliefs-core').textContent = data.core ?? '--';
+  $('beliefs-emerging').textContent = data.emerging ?? '--';
+  $('beliefs-avg').textContent = (data.avgConviction ?? '--') + '%';
+  
+  if (data.error) {
+    log('WARN', `Belief stats error: ${data.error}`, data);
+  }
+}
+
+function calculateAvgConviction(data) {
+  const all = [...(data.core || []), ...(data.active || []), ...(data.emerging || [])];
+  if (all.length === 0) return 0;
+  const sum = all.reduce((acc, b) => acc + (b.conviction_score || 0), 0);
+  return Math.round(sum / all.length);
+}
+
+async function searchBeliefs() {
+  const q = $('belief-search-input').value.trim();
+  if (!q) return;
+  const data = await api('search_beliefs', { query: q, limit: 20 });
+  const box = $('belief-search-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+async function loadBeliefsBrowser() {
+  const data = await api('db_browse', { table: 'beliefs', limit: 50 });
+  renderTable('beliefs-browser', 'beliefs', data);
+}
+
+async function embedAllBeliefs() {
+  if (!confirm('Embed all beliefs? This may take a while.')) return;
+  const data = await api('embed_all_beliefs');
+  showModal('Embed All Beliefs', data);
+}
+
+// =============== MEMORIES ===============
+async function loadMemoryStats() {
+  log('TRACE', 'Loading memory stats...');
+  let data = await api('memory_stats', {}, true);
+  
+  // If memory_stats fails, try db_browse for memory_commits
+  if (data.error) {
+    log('TRACE', 'memory_stats failed, trying db_browse...');
+    const dbData = await api('db_browse', { table: 'memory_commits', limit: 1 }, true);
+    data = {
+      total: dbData.total ?? 0,
+      embedderAvailable: false,
+      semanticEnabled: false,
+      qdrantCount: '--',
+      note: 'From db_browse fallback'
+    };
+  }
+  
+  // Show what we got even if error
+  $('mem-total').textContent = data.total ?? (data.error ? '⚠️' : '--');
+  $('mem-embedder').textContent = data.embedderAvailable ? '✅' : '❌';
+  $('mem-semantic').textContent = data.semanticEnabled ? '✅' : '❌';
+  $('mem-qdrant').textContent = data.qdrantCount ?? '--';
+  
+  if (data.error) {
+    log('WARN', `Memory stats: ${data.error}`, data);
+  }
+}
+
+async function commitMemory() {
+  const stmt = $('mem-statement').value.trim();
+  const type = $('mem-type').value;
+  if (!stmt) { addDebugMsg('Enter a memory statement', 'system'); return; }
+  
+  const data = await api('memory_commit', { statement: stmt, type });
+  if (data.success || data.memory) {
+    addDebugMsg(`✅ Committed: "${stmt.substring(0, 50)}..."`, 'system');
+    $('mem-statement').value = '';
+    loadMemoryStats();
+  } else {
+    showModal('Commit Error', data);
+  }
+}
+
+async function recallMemories() {
+  const q = $('mem-query').value.trim();
+  if (!q) return;
+  const data = await api('recall_memories', { query: q, limit: 10 });
+  const box = $('mem-recall-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+async function loadMemoriesBrowser() {
+  const data = await api('db_browse', { table: 'memory_commits', limit: 50 });
+  renderTable('memories-browser', 'memory_commits', data);
+}
+
+// =============== COGNITIVE ===============
+async function loadCognitiveState() {
+  log('TRACE', 'Loading cognitive state...');
+  const data = await api('cognitive_state', {}, true);
+  
+  $('cog-energy').textContent = data.energy ?? '--';
+  $('cog-state').textContent = data.state ?? '--';
+  $('cog-feeling').textContent = data.feeling ?? '--';
+  $('cog-fatigue').textContent = data.fatigue ?? '--';
+  $('cog-budget').textContent = data.budget ?? '--';
+  $('cog-extractions').textContent = data.extractionsToday ?? '--';
+  
+  if (data.error) {
+    log('WARN', `Cognitive state: ${data.error}`, data);
+  }
+}
+
+// =============== SERVICES ===============
+async function checkAllServices() {
+  log('TRACE', 'Checking all services...');
+  const data = await api('debug_full', {}, true);
+  
+  const update = (id, ok) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = ok ? 'Running' : 'Stopped';
+    el.className = `service-status ${ok ? 'running' : 'stopped'}`;
+  };
+  
+  update('svc-daemon', data.daemon?.running);
+  update('svc-mem-emb', data.services?.memoryEmbedder?.status === 'healthy');
+  update('svc-bel-emb', data.services?.beliefEmbedder?.status === 'healthy');
+  update('svc-qdrant', data.services?.qdrant?.status === 'running');
+  update('svc-lm', data.services?.llm?.status === 'healthy');
+  update('svc-vector', data.integrators?.vectorModules);
+  
+  // Update global status with uptime
+  const ok = data.daemon?.running;
+  daemonUptime = data.daemon?.uptime || null;
+  
+  $('everyday-conn-dot').className = `conn-dot ${ok ? 'ok' : 'err'}`;
+  $('everyday-status').textContent = ok ? `Online (${daemonUptime || '?'})` : 'Offline';
+  $('debug-status-dot').className = `debug-status-dot ${ok ? 'ok' : 'err'}`;
+  $('debug-status-text').textContent = ok ? `Connected (${daemonUptime || '?'})` : 'Disconnected';
+}
+
+async function svcAction(service, action) {
+  log('INFO', `Service ${action}: ${service}`);
+  const cmd = action === 'check' ? 'debug_full' : `service_${action}`;
+  const data = await api(cmd, { service });
+  showModal(`${service} - ${action}`, data);
+  if (action !== 'check') setTimeout(checkAllServices, 1000);
+}
+
+async function debugPaths() {
+  const data = await api('debug_paths');
+  showModal('Path Debug', data);
+}
+
+async function reinitServices() {
+  const data = await api('reinit_services');
+  showModal('Reinit Services', data);
+  setTimeout(checkAllServices, 1000);
+}
+
+// =============== DATABASE ===============
+async function loadDbStats() {
+  log('TRACE', 'Loading DB stats...');
+  const data = await api('db_stats', {}, true);
+  if (data.error) {
+    // Fallback: count manually
+    const beliefs = await api('db_browse', { table: 'beliefs', limit: 1 }, true);
+    const memories = await api('db_browse', { table: 'memory_commits', limit: 1 }, true);
+    $('db-beliefs').textContent = beliefs.total ?? '--';
+    $('db-memories').textContent = memories.total ?? '--';
+    $('db-tables').textContent = '--';
+    $('db-size').textContent = '--';
+    return;
+  }
+  $('db-tables').textContent = data.tables ?? '--';
+  $('db-size').textContent = data.size_bytes ? (data.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : '--';
+  $('db-beliefs').textContent = data.belief_count ?? '--';
+  $('db-memories').textContent = data.memory_count ?? '--';
+}
+
+async function browseTable(table) {
+  if (!table) return;
+  currentTable = table;
+  const data = await api('db_browse', { table, limit: 50 });
+  renderTable('db-browser', table, data);
+}
+
+function renderTable(containerId, table, data) {
+  const c = $(containerId);
+  if (!data.rows || !data.rows.length) {
+    c.innerHTML = '<p style="color:#6b7280;">No data found</p>';
+    return;
+  }
+  
+  let h = `<p style="color:#9ca3af;margin-bottom:10px;">${table}: ${data.total} rows</p>`;
+  h += '<table class="debug-table"><thead><tr><th>Actions</th>';
+  const keys = Object.keys(data.rows[0]).slice(0, 5);
+  keys.forEach(k => h += `<th>${k}</th>`);
+  h += '</tr></thead><tbody>';
+  
+  data.rows.forEach(row => {
+    h += `<tr><td class="row-actions">
+      <button class="row-btn view" onclick="viewRow('${table}',${row.id})">👁</button>
+      <button class="row-btn delete" onclick="deleteRow('${table}',${row.id})">🗑</button>
+    </td>`;
+    keys.forEach(k => {
+      let v = row[k];
+      if (typeof v === 'string' && v.length > 35) v = v.substring(0, 35) + '...';
+      h += `<td>${esc(String(v ?? ''))}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  c.innerHTML = h;
+}
+
+async function viewRow(table, id) {
+  const data = await api('db_query', { sql: `SELECT * FROM ${table} WHERE id = ${id}` });
+  showModal(`${table} #${id}`, data.rows?.[0] || data);
+}
+
+async function deleteRow(table, id) {
+  if (!confirm(`Delete ${table} #${id}?`)) return;
+  const data = await api('db_delete', { table, id });
+  if (data.success) {
+    addDebugMsg(`🗑️ Deleted ${table} #${id}`, 'system');
+    if (currentTable === table) browseTable(table);
+  } else {
+    showModal('Delete Error', data);
+  }
+}
+
+async function runSQL() {
+  const sql = $('custom-sql').value.trim();
+  if (!sql) return;
+  const data = await api('db_query', { sql });
+  const box = $('sql-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+async function resetTable(table) {
+  if (!confirm(`⚠️ RESET ${table}?\n\nThis permanently deletes ALL data!`)) return;
+  if (!confirm(`FINAL CONFIRMATION: Delete all from ${table}?`)) return;
+  
+  const map = { memory_commits: 'memories', thinking_log: 'thinking', conversation_sessions: 'sessions' };
+  const key = map[table] || table;
+  const data = await api('db_wipe_test', { [key]: true });
+  
+  if (data.success) {
+    addDebugMsg(`🗑️ Reset: ${table}`, 'system');
+    loadDbStats();
+  } else {
+    showModal('Reset Error', data);
+  }
+}
+
+async function wipeAll() {
+  if (!confirm('☢️ WIPE ALL TEST DATA?\n\nMemories, thinking, sessions, extraction queue...')) return;
+  if (!confirm('ABSOLUTELY SURE? This cannot be undone!')) return;
+  
+  const data = await api('db_wipe_test', { all: true });
+  if (data.success) {
+    addDebugMsg('☢️ All test data wiped', 'system');
+    loadDbStats();
+  } else {
+    showModal('Wipe Error', data);
+  }
+}
+
+// =============== SEMANTIC SEARCH ===============
+async function semanticSearchBeliefs() {
+  const q = $('sem-belief-query').value.trim();
+  const limit = parseInt($('sem-belief-limit').value) || 10;
+  if (!q) return;
+  const data = await api('semantic_search', { type: 'beliefs', query: q, limit });
+  const box = $('sem-belief-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+async function semanticSearchMemories() {
+  const q = $('sem-mem-query').value.trim();
+  const limit = parseInt($('sem-mem-limit').value) || 10;
+  if (!q) return;
+  const data = await api('recall_memories', { query: q, limit });
+  const box = $('sem-mem-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+// =============== EXTRACTION ===============
+async function loadExtractionQueue() {
+  log('TRACE', 'Loading extraction queue...');
+  const data = await api('db_browse', { table: 'extraction_queue', limit: 20 }, true);
+  
+  $('queue-pending').textContent = data.total ?? '--';
+  $('queue-priority').textContent = '--'; // Would need filtering
+  $('queue-processed').textContent = '--';
+  
+  const c = $('queue-items');
+  if (!data.rows || !data.rows.length) {
+    c.innerHTML = '<p style="color:#6b7280;">Queue is empty</p>';
+    return;
+  }
+  
+  let h = '<table class="debug-table"><thead><tr><th>ID</th><th>Reason</th><th>Priority</th><th>Cost</th></tr></thead><tbody>';
+  data.rows.forEach(r => {
+    h += `<tr><td>#${r.id}</td><td>${esc(r.reason || '')}</td><td>${r.priority || ''}</td><td>${r.estimated_cost || ''}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  c.innerHTML = h;
+}
+
+async function processQueue() {
+  if (!confirm('Process extraction queue?')) return;
+  const data = await api('process_extraction_queue');
+  showModal('Queue Processing', data);
+  loadExtractionQueue();
+}
+
+async function clearQueue() {
+  if (!confirm('Clear extraction queue?')) return;
+  const data = await api('db_wipe_test', { extraction_queue: true });
+  if (data.success) {
+    addDebugMsg('🗑️ Queue cleared', 'system');
+    loadExtractionQueue();
+  }
+}
+
+// =============== ADVANCED ===============
+async function manualExtract() {
+  const text = $('extract-text').value.trim();
+  if (!text) return;
+  const data = await api('manual_belief_extraction', { text });
+  const box = $('extract-results');
+  box.style.display = 'block';
+  box.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+async function testEmbedding() {
+  const text = prompt('Text to embed:', 'Test about cats and sunny days');
+  if (!text) return;
+  const data = await api('test_embedding', { text });
+  showModal('Embedding Test', data);
+}
+
+async function testMemoryCommit() {
+  const stmt = prompt('Memory to test:', 'Test: The sky is blue at ' + new Date().toLocaleTimeString());
+  if (!stmt) return;
+  const data = await api('test_memory_commit', { statement: stmt });
+  showModal('Memory Commit Test', data);
+  loadMemoryStats();
+}
+
+async function testRecall() {
+  const q = prompt('Recall query:', 'sky');
+  if (!q) return;
+  const data = await api('recall_memories', { query: q, limit: 10 });
+  showModal('Recall Test', data);
+}
+
+async function testChain() {
+  log('INFO', '=== MODULE CHAIN TEST ===');
+  const mods = [
+    { name: 'Daemon', cmd: 'status', ok: r => r.running !== undefined },
+    { name: 'Identity', cmd: 'identity_status', ok: r => !r.error },
+    { name: 'Memory', cmd: 'memory_stats', ok: r => r.total !== undefined },
+    { name: 'Beliefs', cmd: 'belief_stats', ok: r => !r.error },
+    { name: 'Cognitive', cmd: 'cognitive_state', ok: r => r.energy !== undefined || r.available !== undefined }
+  ];
+  
+  for (const m of mods) {
+    try {
+      const r = await api(m.cmd, {}, true);
+      log(m.ok(r) ? 'OK' : 'ERROR', `${m.name}: ${m.ok(r) ? 'PASS' : 'FAIL'}`, r);
+    } catch (e) {
+      log('ERROR', `${m.name}: ${e.message}`);
+    }
+  }
+  log('INFO', '=== TEST COMPLETE ===');
+}
+
+async function testApiCmd() {
+  const cmd = $('api-test-cmd').value.trim() || 'status';
+  const box = $('api-test-result');
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:#a78bfa;">Calling ' + esc(cmd) + '...</div>';
+  
+  const data = await api(cmd);
+  
+  // Remove trace for cleaner display
+  const cleanData = { ...data };
+  delete cleanData._trace;
+  
+  const isError = data.error || data.timeout;
+  const statusColor = isError ? '#ef4444' : '#22c55e';
+  const statusText = isError ? '❌ ERROR' : '✅ OK';
+  
+  box.innerHTML = `
+    <div style="margin-bottom:8px;font-weight:bold;color:${statusColor}">${statusText}</div>
+    <pre style="margin:0;white-space:pre-wrap;word-break:break-all;max-height:250px;overflow:auto;">${esc(JSON.stringify(cleanData, null, 2))}</pre>
+  `;
+}
+
+async function fullDebug() {
+  const data = await api('debug_full');
+  showModal('Full System Debug', data);
+}
+
+async function backupDb() {
+  const data = await api('db_backup');
+  showModal('Database Backup', data);
+}
+
+async function restoreDb() {
+  if (!confirm('⚠️ Restore database from backup?\n\nThis will overwrite current data!')) return;
+  const data = await api('db_restore');
+  showModal('Database Restore', data);
+}
+
+// =============== INIT ===============
+$('everyday-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendEveryday(); } });
+$('debug-chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDebug(); } });
+$('mem-query').addEventListener('keypress', e => { if (e.key === 'Enter') recallMemories(); });
+$('belief-search-input').addEventListener('keypress', e => { if (e.key === 'Enter') searchBeliefs(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+log('INFO', 'NIA UI loaded');
+
+// Add initial greeting to shared history
+chatMessages.push({ content: "Hey! I'm NIA. What's on your mind? 💛", type: 'system', time: Date.now() });
+
+setTimeout(() => {
+  checkAllServices();
+  loadMemoryStats();
+  loadCognitiveState();
+  loadDbStats();
+  loadBeliefStats();
+}, 1000);
+
+// Auto-refresh status every 10 seconds
+setInterval(() => {
+  checkAllServices();
+}, 10000);
+
+// =============== DEBUG TOOLS PAGE ===============
+
+// Run full system diagnostic (uses server proxy to avoid CORS)
+async function runFullDiagnostic() {
+  const results = { memEmb: false, belEmb: false, qdrant: false, lm: false };
+  
+  $('diag-mem-emb').textContent = '⏳';
+  $('diag-bel-emb').textContent = '⏳';
+  $('diag-qdrant').textContent = '⏳';
+  $('diag-lm').textContent = '⏳';
+  
+  const diagBox = $('diag-results');
+  diagBox.style.display = 'block';
+  diagBox.innerHTML = '<div style="color:#a78bfa;">Running diagnostics...</div>';
+  
+  let report = [];
+  
+  // Test Memory Embedder (5001) via proxy
+  try {
+    const res = await fetch('/health/memory-embedder', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (!data.offline && !data.error) {
+      results.memEmb = true;
+      $('diag-mem-emb').innerHTML = '<span style="color:#22c55e;">✅ Online</span>';
+      report.push(`✅ Memory Embedder: ${data.model || 'OK'} (${data.dimensions || '?'} dims)`);
+    } else {
+      throw new Error(data.error || 'offline');
+    }
+  } catch (e) {
+    $('diag-mem-emb').innerHTML = '<span style="color:#ef4444;">❌ Offline</span>';
+    report.push(`❌ Memory Embedder: ${e.message}`);
+  }
+  
+  // Test Belief Embedder (5002) via proxy
+  try {
+    const res = await fetch('/health/belief-embedder', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (!data.offline && !data.error) {
+      results.belEmb = true;
+      $('diag-bel-emb').innerHTML = '<span style="color:#22c55e;">✅ Online</span>';
+      report.push(`✅ Belief Embedder: ${data.model || 'Poincaré'} (${data.dimensions || '?'} dims)`);
+    } else {
+      throw new Error(data.error || 'offline');
+    }
+  } catch (e) {
+    $('diag-bel-emb').innerHTML = '<span style="color:#ef4444;">❌ Offline</span>';
+    report.push(`❌ Belief Embedder: ${e.message}`);
+  }
+  
+  // Test Qdrant (6333) via proxy
+  try {
+    const res = await fetch('/health/qdrant', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (!data.offline && !data.error) {
+      results.qdrant = true;
+      const cols = data.result?.collections?.map(c => c.name).join(', ') || 'none';
+      $('diag-qdrant').innerHTML = '<span style="color:#22c55e;">✅ Online</span>';
+      report.push(`✅ Qdrant: Collections [${cols}]`);
+    } else {
+      throw new Error(data.error || 'offline');
+    }
+  } catch (e) {
+    $('diag-qdrant').innerHTML = '<span style="color:#ef4444;">❌ Offline</span>';
+    report.push(`❌ Qdrant: ${e.message}`);
+  }
+  
+  // Test LM Studio (1234) via proxy
+  try {
+    const res = await fetch('/health/lm-studio', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (!data.offline && !data.error) {
+      results.lm = true;
+      const models = data.data?.map(m => m.id).join(', ') || 'none';
+      $('diag-lm').innerHTML = '<span style="color:#22c55e;">✅ Online</span>';
+      report.push(`✅ LM Studio: ${data.data?.length || 0} models loaded`);
+    } else {
+      throw new Error(data.error || 'offline');
+    }
+  } catch (e) {
+    $('diag-lm').innerHTML = '<span style="color:#ef4444;">❌ Offline</span>';
+    report.push(`❌ LM Studio: ${e.message}`);
+  }
+  
+  // Get daemon memory system status
+  try {
+    const memStatus = await api('memory_system_status', {}, true);
+    if (!memStatus.error) {
+      report.push('');
+      report.push('=== DAEMON MEMORY SYSTEM ===');
+      report.push(`Qdrant: ${memStatus.qdrant || 'unknown'}`);
+      report.push(`Memory Embedder: ${memStatus.memoryEmbedder || 'unknown'}`);
+      report.push(`Belief Embedder: ${memStatus.beliefEmbedder || 'unknown'}`);
+      report.push(`Semantic Search: ${memStatus.semanticSearch || 'unknown'}`);
+    }
+  } catch (e) {}
+  
+  // Summary
+  report.push('');
+  report.push('=== SEMANTIC SEARCH STATUS ===');
+  report.push(`Memory semantic search: ${results.memEmb && results.qdrant ? '✅ ENABLED' : '❌ DISABLED'}`);
+  report.push(`Belief semantic search: ${results.belEmb && results.qdrant ? '✅ ENABLED' : '❌ DISABLED'}`);
+  
+  diagBox.innerHTML = `<pre style="margin:0;color:#cbd5e1;">${report.join('\n')}</pre>`;
+}
+
+// Direct embedding test (via server proxy to avoid CORS)
+async function testDirectEmbedding() {
+  const text = $('emb-test-text').value.trim();
+  const type = $('emb-test-type').value;
+  const box = $('emb-test-results');
+  
+  if (!text) { alert('Enter text to embed'); return; }
+  
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:#a78bfa;">Embedding...</div>';
+  
+  const url = `/proxy/embed?type=${type}`;
+  
+  try {
+    const startTime = Date.now();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, type: 'value' }),
+      signal: AbortSignal.timeout(10000)
+    });
+    const elapsed = Date.now() - startTime;
+    
+    const data = await res.json();
+    
+    if (data.error) throw new Error(data.error);
+    
+    let html = `<div style="color:#22c55e;margin-bottom:10px;">✅ Success (${elapsed}ms)</div>`;
+    html += `<div><strong>Dimensions:</strong> ${data.dimensions || data.embedding?.length || '?'}</div>`;
+    if (data.poincare_norm !== undefined) {
+      html += `<div><strong>Poincaré Norm:</strong> ${data.poincare_norm.toFixed(4)}</div>`;
+      html += `<div><strong>Hierarchy Level:</strong> ${data.hierarchy_level || '?'}/10</div>`;
+    }
+    html += `<div style="margin-top:10px;"><strong>First 10 values:</strong></div>`;
+    html += `<pre style="font-size:10px;color:#9ca3af;margin:5px 0;">[${data.embedding?.slice(0,10).map(v => v.toFixed(4)).join(', ')}...]</pre>`;
+    
+    box.innerHTML = html;
+  } catch (e) {
+    const port = type === 'memory' ? 5001 : 5002;
+    const script = type === 'memory' ? 'memory-embedder-service.py' : 'belief-embedder-service.py';
+    box.innerHTML = `<div style="color:#ef4444;">❌ Error: ${e.message}</div>
+      <div style="margin-top:10px;color:#9ca3af;">Make sure ${script} is running on port ${port}</div>`;
+  }
+}
+
+// Memory recall test through daemon
+async function testMemoryRecall() {
+  const query = $('recall-test-query').value.trim();
+  const limit = parseInt($('recall-test-limit').value) || 10;
+  const box = $('recall-test-results');
+  
+  if (!query) { alert('Enter recall query'); return; }
+  
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:#a78bfa;">Recalling...</div>';
+  
+  const data = await api('recall_memories', { query, limit });
+  
+  if (data.error) {
+    box.innerHTML = `<div style="color:#ef4444;">❌ Error: ${data.error}</div>`;
+    return;
+  }
+  
+  const memories = data.memories || data.results || [];
+  
+  let html = `<div style="color:#22c55e;margin-bottom:10px;">Found ${memories.length} memories</div>`;
+  
+  if (data.sources) {
+    html += `<div style="margin-bottom:10px;font-size:11px;color:#9ca3af;">Sources: keyword=${data.sources.keyword || 0}, semantic=${data.sources.semantic || 0}</div>`;
+  }
+  
+  if (memories.length > 0) {
+    html += '<table class="debug-table"><thead><tr><th>ID</th><th>Memory</th><th>Strength</th><th>Source</th></tr></thead><tbody>';
+    memories.forEach(m => {
+      const stmt = m.memory_statement || m.statement || m.content || JSON.stringify(m);
+      html += `<tr>
+        <td>#${m.id || '?'}</td>
+        <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;">${esc(stmt)}</td>
+        <td>${m.strength || m.score || '?'}</td>
+        <td>${m.source || m.match_type || '?'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  
+  box.innerHTML = html;
+}
+
+// Relevance scoring test
+async function testRelevanceScoring() {
+  const query = $('relevance-query').value.trim();
+  const box = $('relevance-results');
+  
+  if (!query) { alert('Enter query'); return; }
+  
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:#a78bfa;">Testing relevance scoring...</div>';
+  
+  // First recall, then check scorer status
+  const recallData = await api('recall_memories', { query, limit: 15 });
+  const scorerStatus = await api('relevance_scorer_status', {}, true);
+  
+  let html = '';
+  
+  // Scorer status
+  html += '<div style="margin-bottom:15px;">';
+  html += `<strong>Relevance Scorer:</strong> ${scorerStatus.available ? '✅ Available' : '❌ Not Available'}<br>`;
+  if (scorerStatus.threshold) html += `<strong>Threshold:</strong> ${scorerStatus.threshold}/10<br>`;
+  html += '</div>';
+  
+  // Recall results
+  const memories = recallData.memories || recallData.results || [];
+  html += `<div style="margin-bottom:10px;"><strong>Recalled ${memories.length} memories for query:</strong> "${esc(query)}"</div>`;
+  
+  if (memories.length > 0) {
+    html += '<table class="debug-table"><thead><tr><th>ID</th><th>Memory</th><th>Subjects</th><th>Score</th></tr></thead><tbody>';
+    memories.forEach(m => {
+      const stmt = m.memory_statement || m.statement || '';
+      const subjects = m.subjects || '';
+      html += `<tr>
+        <td>#${m.id || '?'}</td>
+        <td style="max-width:350px;">${esc(stmt)}</td>
+        <td>${esc(subjects)}</td>
+        <td>${m.relevance_score || m.score || m.strength || '?'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  
+  box.innerHTML = html;
+}
+
+// Load detailed memories with all fields
+async function loadDetailedMemories() {
+  const box = $('detailed-memories-browser');
+  box.innerHTML = '<div style="color:#a78bfa;">Loading...</div>';
+  
+  const data = await api('db_browse', { table: 'memory_commits', limit: 50 }, true);
+  
+  if (data.error || !data.rows) {
+    box.innerHTML = `<div style="color:#ef4444;">Error: ${data.error || 'No data'}</div>`;
+    return;
+  }
+  
+  if (data.rows.length === 0) {
+    box.innerHTML = '<div style="color:#6b7280;">No memories found</div>';
+    return;
+  }
+  
+  let html = '<table class="debug-table"><thead><tr><th>ID</th><th>Statement</th><th>Subjects</th><th>Type</th><th>Strength</th><th>Access</th><th>Vector</th></tr></thead><tbody>';
+  data.rows.forEach(m => {
+    const hasVector = m.vector_id ? '✅' : '❌';
+    html += `<tr>
+      <td>#${m.id}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;" title="${esc(m.memory_statement || '')}">${esc((m.memory_statement || '').substring(0, 60))}...</td>
+      <td>${esc(m.subjects || '')}</td>
+      <td>${m.memory_type || ''}</td>
+      <td>${m.strength || ''}</td>
+      <td>${m.access_count || 0}</td>
+      <td>${hasVector}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  html += `<div style="margin-top:10px;font-size:11px;color:#6b7280;">Showing ${data.rows.length} of ${data.total || '?'} memories</div>`;
+  
+  box.innerHTML = html;
+}
+
+// Load detailed beliefs with filters
+async function loadDetailedBeliefs() {
+  const holder = $('belief-filter-holder').value;
+  const subject = $('belief-filter-subject').value;
+  const box = $('detailed-beliefs-browser');
+  
+  box.innerHTML = '<div style="color:#a78bfa;">Loading...</div>';
+  
+  const data = await api('db_browse', { table: 'beliefs', limit: 100 }, true);
+  
+  if (data.error || !data.rows) {
+    box.innerHTML = `<div style="color:#ef4444;">Error: ${data.error || 'No data'}</div>`;
+    return;
+  }
+  
+  // Filter
+  let beliefs = data.rows;
+  if (holder) beliefs = beliefs.filter(b => b.holder === holder);
+  if (subject) beliefs = beliefs.filter(b => b.subject === subject);
+  
+  // Populate subject dropdown
+  const subjects = [...new Set(data.rows.map(b => b.subject).filter(Boolean))];
+  const subjectSelect = $('belief-filter-subject');
+  const currentSubject = subjectSelect.value;
+  subjectSelect.innerHTML = '<option value="">All Subjects</option>' + 
+    subjects.map(s => `<option value="${esc(s)}" ${s === currentSubject ? 'selected' : ''}>${esc(s)}</option>`).join('');
+  
+  if (beliefs.length === 0) {
+    box.innerHTML = '<div style="color:#6b7280;">No beliefs match filters</div>';
+    return;
+  }
+  
+  let html = '<table class="debug-table"><thead><tr><th>ID</th><th>Holder</th><th>Subject</th><th>Statement</th><th>Confidence</th><th>Maturity</th><th>Vector</th></tr></thead><tbody>';
+  beliefs.forEach(b => {
+    const hasVector = b.vector_id ? '✅' : '❌';
+    html += `<tr>
+      <td>#${b.id}</td>
+      <td>${esc(b.holder || '')}</td>
+      <td>${esc(b.subject || '')}</td>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;" title="${esc(b.statement || '')}">${esc((b.statement || '').substring(0, 50))}...</td>
+      <td>${b.confidence || ''}%</td>
+      <td>${b.maturity_level || ''}</td>
+      <td>${hasVector}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  html += `<div style="margin-top:10px;font-size:11px;color:#6b7280;">Showing ${beliefs.length} beliefs (filtered from ${data.rows.length})</div>`;
+  
+  box.innerHTML = html;
+}
+
+// Load Qdrant collections (via proxy)
+async function loadQdrantCollections() {
+  const box = $('qdrant-collections');
+  box.innerHTML = '<div style="color:#a78bfa;">Loading...</div>';
+  
+  try {
+    const res = await fetch('/health/qdrant', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    
+    if (data.error || data.offline) throw new Error(data.error || 'offline');
+    
+    const collections = data.result?.collections || [];
+    
+    if (collections.length === 0) {
+      box.innerHTML = '<div style="color:#6b7280;">No collections found</div>';
+      return;
     }
     
-    // Update UI with status
-    function updateStatus(status, cogState, identity) {
-      if (status && status.running) {
-        statusEl.textContent = `Online (${status.uptime || '...'})`;
-      } else {
-        statusEl.textContent = 'Offline';
-      }
-      
-      if (cogState && cogState.available) {
-        // Update energy
-        document.getElementById('stat-energy').textContent = `${cogState.energy}%`;
-        energyFill.style.width = `${cogState.energy}%`;
-        
-        // Update state
-        document.getElementById('stat-state').textContent = cogState.feeling || 'Normal';
-        
-        // Update header color
-        header.className = '';
-        if (cogState.state === 'tired') header.classList.add('tired');
-        else if (cogState.state === 'overwhelmed') header.classList.add('overwhelmed');
-        else if (cogState.state === 'critically_low') header.classList.add('exhausted');
-      }
-      
-      // Update beliefs and scars counts
-      if (identity) {
-        if (identity.active_beliefs !== undefined) {
-          document.getElementById('stat-beliefs').textContent = identity.active_beliefs || 0;
-        }
-        
-        if (identity.formative_scars) {
-          const scars = (identity.formative_scars.positive || 0) + (identity.formative_scars.negative || 0);
-          document.getElementById('stat-scars').textContent = scars;
-        }
-      }
-    }
+    let html = '<div class="debug-grid debug-grid-2">';
     
-    // Add message to chat
-    function addMessage(content, type = 'assistant') {
-      const msg = document.createElement('div');
-      msg.className = `message ${type}`;
-      msg.textContent = content;
-      messagesEl.appendChild(msg);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-    
-    // Add debug message
-    function addDebugMessage(title, data) {
-      const titleMsg = document.createElement('div');
-      titleMsg.className = 'message debug-title';
-      titleMsg.textContent = `🔧 ${title}`;
-      messagesEl.appendChild(titleMsg);
-      
-      const dataMsg = document.createElement('div');
-      dataMsg.className = 'message debug';
-      dataMsg.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-      messagesEl.appendChild(dataMsg);
-      
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-    
-    // Send chat message
-    async function sendMessage() {
-      const text = chatInput.value.trim();
-      if (!text || isWaiting) return;
-      
-      addMessage(text, 'user');
-      chatInput.value = '';
-      
-      isWaiting = true;
-      sendBtn.disabled = true;
-      
-      // Show typing indicator
-      const typingMsg = document.createElement('div');
-      typingMsg.className = 'message assistant';
-      typingMsg.innerHTML = '<span class="typing"></span><span class="typing"></span><span class="typing"></span>';
-      messagesEl.appendChild(typingMsg);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-      
+    for (const col of collections) {
+      // Get collection details via proxy
       try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
-        });
+        const infoRes = await fetch(`/health/qdrant-${col.name}`, { signal: AbortSignal.timeout(3000) });
+        const info = await infoRes.json();
         
-        const data = await response.json();
-        typingMsg.remove();
-        
-        if (data.success) {
-          addMessage(data.response, 'assistant');
+        if (info.error || info.offline) {
+          html += `<div class="debug-stat-card">
+            <div class="debug-stat-label">${esc(col.name)}</div>
+            <div class="debug-stat-value" style="font-size:24px;">✓</div>
+            <div class="debug-stat-sub">collection exists</div>
+          </div>`;
         } else {
-          addMessage(data.response || 'Something went wrong.', 'system');
+          const pointCount = info.result?.points_count || 0;
+          const vectorSize = info.result?.config?.params?.vectors?.size || '?';
+          html += `<div class="debug-stat-card">
+            <div class="debug-stat-label">${esc(col.name)}</div>
+            <div class="debug-stat-value" style="font-size:24px;">${pointCount}</div>
+            <div class="debug-stat-sub">vectors (${vectorSize} dims)</div>
+          </div>`;
         }
-        
-        refreshStats();
-      } catch (err) {
-        typingMsg.remove();
-        addMessage(`Error: ${err.message}`, 'system');
+      } catch (e) {
+        html += `<div class="debug-stat-card">
+          <div class="debug-stat-label">${esc(col.name)}</div>
+          <div class="debug-stat-value" style="font-size:24px;">✓</div>
+          <div class="debug-stat-sub">collection exists</div>
+        </div>`;
       }
+    }
+    
+    html += '</div>';
+    box.innerHTML = html;
+    
+  } catch (e) {
+    box.innerHTML = `<div style="color:#ef4444;">❌ Qdrant offline: ${e.message}</div>`;
+  }
+}
+
+// Memory roundtrip test: commit -> recall
+async function testMemoryRoundtrip() {
+  const testStmt = `Roundtrip test: ${Date.now()}`;
+  
+  const box = $('detailed-memories-browser');
+  box.innerHTML = '<div style="color:#a78bfa;">Running roundtrip test...</div>';
+  
+  let html = '<div style="font-family:monospace;font-size:12px;">';
+  
+  // Step 1: Commit
+  html += '<div style="margin-bottom:10px;"><strong>Step 1: Commit memory</strong></div>';
+  const commitData = await api('memory_commit', { statement: testStmt, type: 'test' });
+  
+  if (commitData.error) {
+    html += `<div style="color:#ef4444;">❌ Commit failed: ${commitData.error}</div>`;
+    box.innerHTML = html + '</div>';
+    return;
+  }
+  
+  html += `<div style="color:#22c55e;">✅ Committed: "${testStmt}"</div>`;
+  html += `<div style="color:#9ca3af;margin-left:20px;">ID: ${commitData.id || '?'}, Vector: ${commitData.vectorId ? 'yes' : 'no'}</div>`;
+  
+  // Step 2: Wait a moment
+  html += '<div style="margin:10px 0;"><strong>Step 2: Wait 500ms...</strong></div>';
+  box.innerHTML = html + '<div style="color:#a78bfa;">Waiting...</div></div>';
+  await new Promise(r => setTimeout(r, 500));
+  
+  // Step 3: Recall
+  html += '<div style="margin-bottom:10px;"><strong>Step 3: Recall test</strong></div>';
+  const recallData = await api('recall_memories', { query: 'roundtrip test', limit: 5 });
+  
+  const memories = recallData.memories || recallData.results || [];
+  const found = memories.some(m => (m.memory_statement || '').includes('Roundtrip test'));
+  
+  if (found) {
+    html += `<div style="color:#22c55e;">✅ Memory recalled successfully!</div>`;
+  } else {
+    html += `<div style="color:#f59e0b;">⚠️ Memory not found in recall (may need semantic search)</div>`;
+    html += `<div style="color:#9ca3af;margin-left:20px;">Got ${memories.length} results</div>`;
+  }
+  
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+// Send raw IPC command
+async function sendRawIPC() {
+  const cmd = $('raw-ipc-cmd').value.trim();
+  const dataStr = $('raw-ipc-data').value.trim();
+  const box = $('raw-ipc-results');
+  
+  if (!cmd) { alert('Enter command'); return; }
+  
+  let params = {};
+  if (dataStr) {
+    try {
+      params = JSON.parse(dataStr);
+    } catch (e) {
+      alert('Invalid JSON: ' + e.message);
+      return;
+    }
+  }
+  
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:#a78bfa;">Sending...</div>';
+  
+  const data = await api(cmd, params);
+  
+  const cleanData = { ...data };
+  delete cleanData._trace;
+  
+  box.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all;">${esc(JSON.stringify(cleanData, null, 2))}</pre>`;
+}
+
+// Update navTo to handle debugtools page
+const originalNavTo = navTo;
+navTo = function(page, el) {
+  originalNavTo(page, el);
+  if (page === 'debugtools') {
+    runFullDiagnostic();
+    loadDetailedMemories();
+    loadQdrantCollections();
+  }
+  if (page === 'beliefspace') {
+    loadBeliefSpace();
+  }
+};
+
+// =============== BELIEF SPACE 3D ===============
+let beliefSpaceData = {
+  allBeliefs: [],
+  selectedTypes: new Set(),
+  selectedHolders: new Set(['self', 'user']), // Default: show all
+  minConviction: 0
+};
+
+const BELIEF_TYPE_COLORS = {
+  'identity': '#ef4444',
+  'core_value': '#ef4444',
+  'core': '#ef4444',
+  'value': '#f59e0b',
+  'principle': '#f59e0b',
+  'preference': '#10b981',
+  'fact': '#3b82f6',
+  'causal': '#3b82f6',
+  'instrumental': '#8b5cf6',
+  'meta': '#a78bfa',
+  'observation': '#6366f1',
+  'unknown': '#6b7280'
+};
+
+async function loadBeliefSpace() {
+  const loading = $('bs-loading');
+  const plot = $('bs-plot');
+  
+  loading.style.display = 'block';
+  plot.innerHTML = '';
+  
+  try {
+    // Fetch beliefs with embeddings
+    const response = await api('beliefs_full', {}, true);
+    
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    
+    const beliefs = response.beliefs || [];
+    
+    if (beliefs.length === 0) {
+      throw new Error('No beliefs found in database');
+    }
+    
+    // Process beliefs for 3D visualization
+    beliefSpaceData.allBeliefs = beliefs.map(b => {
+      // Project Poincaré embedding to 3D
+      const pos = projectPoincareToEuclidean3D(b);
       
-      isWaiting = false;
-      sendBtn.disabled = false;
-      chatInput.focus();
-    }
-    
-    // Run diagnostic
-    async function runDiagnostic(command) {
-      try {
-        const response = await fetch(`/api/${command}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        const data = await response.json();
-        addDebugMessage(command.replace('_', ' ').toUpperCase(), data);
-      } catch (err) {
-        addMessage(`Error running ${command}: ${err.message}`, 'system');
-      }
-    }
-    
-    // Run action
-    async function runAction(action) {
-      try {
-        addMessage(`Running ${action}...`, 'system');
-        const response = await fetch(`/api/${action}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        const data = await response.json();
-        addDebugMessage(action.replace('_', ' ').toUpperCase(), data);
-        refreshStats();
-      } catch (err) {
-        addMessage(`Error: ${err.message}`, 'system');
-      }
-    }
-    
-    // Refresh stats
-    async function refreshStats() {
-      try {
-        const identity = await fetch('/api/identity_status').then(r => r.json());
-        
-        if (identity.active_beliefs !== undefined) {
-          document.getElementById('stat-beliefs').textContent = identity.active_beliefs || 0;
-        }
-        
-        if (identity.formative_scars) {
-          const scars = (identity.formative_scars.positive || 0) + (identity.formative_scars.negative || 0);
-          document.getElementById('stat-scars').textContent = scars;
-        }
-      } catch (err) {
-        console.error('Failed to refresh stats:', err);
-      }
-    }
-    
-    // Clear chat
-    function clearChat() {
-      const messages = messagesEl.querySelectorAll('.message:not(.system):first-child');
-      messages.forEach(msg => msg.remove());
-      addMessage('Chat cleared (locally only)', 'system');
-    }
-    
-    // Enter to send
-    chatInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+      return {
+        id: b.id,
+        statement: b.belief_statement || b.statement || 'Unknown',
+        type: b.belief_type || b.type || 'unknown',
+        holder: b.belief_holder || b.holder || 'unknown',
+        conviction: b.conviction_score || b.conviction || 50,
+        maturity: b.maturity_label || 'emerging',
+        createdAt: b.created_at,
+        poincareNorm: pos.normUsed,
+        hasEmbedding: b.poincare_norm !== undefined && b.poincare_norm !== null,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        distanceFromOrigin: pos.distance
+      };
     });
     
-    // Auto-resize textarea
-    chatInput.addEventListener('input', () => {
-      chatInput.style.height = 'auto';
-      chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
-    });
+    // Debug log
+    console.log('Belief Space loaded:', beliefSpaceData.allBeliefs.length, 'beliefs');
+    console.log('Sample belief:', beliefSpaceData.allBeliefs[0]);
+    console.log('Types:', [...new Set(beliefSpaceData.allBeliefs.map(b => b.type))]);
+    console.log('Holders:', [...new Set(beliefSpaceData.allBeliefs.map(b => b.holder))]);
     
-    // Initialize
-    connectWebSocket();
-    refreshStats();
+    // Update stats
+    const embedded = beliefSpaceData.allBeliefs.filter(b => b.hasEmbedding).length;
+    $('bs-total').textContent = beliefSpaceData.allBeliefs.length;
+    $('bs-embedded').textContent = `${embedded} (${embedded === 0 ? 'using conviction fallback' : 'true Poincaré'})`;
     
-    // Initial status check
-    setTimeout(() => {
-      runDiagnostic('status');
-    }, 1000);
-  </script>
+    const avgConv = beliefSpaceData.allBeliefs.length > 0 
+      ? beliefSpaceData.allBeliefs.reduce((s, b) => s + b.conviction, 0) / beliefSpaceData.allBeliefs.length 
+      : 0;
+    $('bs-avg-conviction').textContent = avgConv.toFixed(0) + '%';
+    
+    // Initialize type filters
+    initBeliefTypeFilters();
+    
+    // Render plot
+    renderBeliefSpace();
+    
+    loading.style.display = 'none';
+    
+  } catch (err) {
+    loading.innerHTML = `<div style="color:#ef4444;">
+      <div style="font-size:24px;margin-bottom:10px;">❌</div>
+      Error: ${err.message}<br>
+      <button class="dbtn dbtn-sm dbtn-secondary" style="margin-top:15px;" onclick="loadBeliefSpace()">Retry</button>
+    </div>`;
+  }
+}
+
+function projectPoincareToEuclidean3D(belief) {
+  // Poincaré norm tells us how far from the hyperbolic origin (0 = center, 1 = edge)
+  // If no poincare_norm, estimate from conviction (higher conviction = more central)
+  let norm = belief.poincare_norm;
+  if (norm === undefined || norm === null) {
+    // Estimate: high conviction = low norm (central), low conviction = high norm (peripheral)
+    const conviction = belief.conviction_score || belief.conviction || 50;
+    norm = 1 - (conviction / 100) * 0.7; // Map 0-100 conviction to 0.3-1.0 norm
+  }
+  
+  // Use belief properties to create consistent 3D position
+  // Hash the statement and type to get consistent angles
+  const hash1 = hashString(belief.belief_statement || belief.statement || String(belief.id));
+  const hash2 = hashString(belief.belief_type || belief.type || 'unknown');
+  const hash3 = hashString(belief.belief_holder || belief.holder || 'self');
+  
+  // Spherical coordinates
+  // theta: azimuthal angle (0 to 2π) - based on statement hash
+  // phi: polar angle (0 to π) - based on type + holder hash
+  const theta = (hash1 % 1000) / 1000 * Math.PI * 2;
+  const phi = (hash2 % 1000) / 1000 * Math.PI * 0.8 + 0.1 * Math.PI; // Avoid poles
+  
+  // Scale radius by Poincaré norm - core beliefs closer to center
+  // Invert: high norm (peripheral) = far, low norm (central) = close
+  const radius = norm * 3; // Scale to reasonable 3D range
+  
+  // Convert spherical to Cartesian
+  const x = radius * Math.sin(phi) * Math.cos(theta);
+  const y = radius * Math.sin(phi) * Math.sin(theta);
+  const z = radius * Math.cos(phi);
+  
+  // Add small jitter based on holder to separate self/user beliefs slightly
+  const jitter = (hash3 % 100) / 100 * 0.3 - 0.15;
+  
+  return {
+    x: x + jitter,
+    y: y + jitter,
+    z: z + jitter,
+    distance: radius,
+    normUsed: norm
+  };
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+function initBeliefTypeFilters() {
+  const container = $('bs-type-filters');
+  container.innerHTML = '';
+  
+  // Get unique types, filter out empty/null
+  const types = [...new Set(beliefSpaceData.allBeliefs.map(b => b.type).filter(t => t && t !== 'null' && t !== 'undefined'))];
+  
+  if (types.length === 0) {
+    types.push('unknown');
+  }
+  
+  beliefSpaceData.selectedTypes = new Set(types);
+  
+  types.forEach(type => {
+    const badge = document.createElement('div');
+    badge.className = 'bs-type-badge active';
+    badge.textContent = type;
+    badge.style.background = BELIEF_TYPE_COLORS[type] || '#8b5cf6';
+    badge.dataset.type = type;
+    
+    badge.onclick = () => {
+      if (beliefSpaceData.selectedTypes.has(type)) {
+        beliefSpaceData.selectedTypes.delete(type);
+        badge.classList.remove('active');
+        badge.classList.add('inactive');
+      } else {
+        beliefSpaceData.selectedTypes.add(type);
+        badge.classList.add('active');
+        badge.classList.remove('inactive');
+      }
+      renderBeliefSpace();
+    };
+    
+    container.appendChild(badge);
+  });
+}
+
+function toggleBeliefHolder(el) {
+  const holder = el.dataset.holder;
+  
+  if (holder === 'all') {
+    // Toggle all
+    if (beliefSpaceData.selectedHolders.size === 2) {
+      beliefSpaceData.selectedHolders.clear();
+      document.querySelectorAll('.bs-type-badge[data-holder]').forEach(b => {
+        b.classList.remove('active');
+        b.classList.add('inactive');
+      });
+    } else {
+      beliefSpaceData.selectedHolders = new Set(['self', 'user']);
+      document.querySelectorAll('.bs-type-badge[data-holder]').forEach(b => {
+        b.classList.add('active');
+        b.classList.remove('inactive');
+      });
+    }
+  } else {
+    if (beliefSpaceData.selectedHolders.has(holder)) {
+      beliefSpaceData.selectedHolders.delete(holder);
+      el.classList.remove('active');
+      el.classList.add('inactive');
+    } else {
+      beliefSpaceData.selectedHolders.add(holder);
+      el.classList.add('active');
+      el.classList.remove('inactive');
+    }
+  }
+  
+  renderBeliefSpace();
+}
+
+function updateBeliefConvictionFilter(value) {
+  beliefSpaceData.minConviction = parseInt(value);
+  $('bs-min-conv-val').textContent = value + '%';
+  renderBeliefSpace();
+}
+
+function filterBeliefs() {
+  return beliefSpaceData.allBeliefs.filter(b => {
+    // Type filter - if no types selected, show all
+    if (beliefSpaceData.selectedTypes.size > 0 && !beliefSpaceData.selectedTypes.has(b.type)) {
+      return false;
+    }
+    
+    // Holder filter
+    const holder = (b.holder || 'self').toLowerCase();
+    const isSelf = holder === 'self' || holder === 'nia' || holder === 'i' || holder === '' || holder === 'unknown';
+    const isUser = holder === 'user' || holder === 'they' || holder.includes('user');
+    
+    // Check if this belief's holder is in our selected set
+    const selfSelected = beliefSpaceData.selectedHolders.has('self');
+    const userSelected = beliefSpaceData.selectedHolders.has('user');
+    
+    // If neither is selected, show nothing (edge case)
+    if (!selfSelected && !userSelected) return false;
+    
+    // Show if holder matches any selected category
+    if (isSelf && selfSelected) return true;
+    if (isUser && userSelected) return true;
+    
+    // If we can't categorize but both are selected, show it
+    if (selfSelected && userSelected) return true;
+    
+    return false;
+  }).filter(b => b.conviction >= beliefSpaceData.minConviction);
+}
+
+function renderBeliefSpace() {
+  const beliefs = filterBeliefs();
+  
+  $('bs-visible').textContent = beliefs.length;
+  
+  if (beliefs.length === 0) {
+    const debugInfo = `Total loaded: ${beliefSpaceData.allBeliefs.length}<br>
+Types available: ${[...beliefSpaceData.selectedTypes].join(', ') || 'none'}<br>
+Holders selected: ${[...beliefSpaceData.selectedHolders].join(', ') || 'none'}<br>
+Min conviction: ${beliefSpaceData.minConviction}%`;
+    
+    $('bs-plot').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:14px;text-align:center;padding:40px;">
+      <div style="font-size:48px;margin-bottom:20px;">🌌</div>
+      No beliefs match current filters<br><br>
+      <small style="color:#4b5563;">${debugInfo}</small><br><br>
+      <button class="dbtn dbtn-sm dbtn-primary" onclick="beliefSpaceData.selectedTypes=new Set(beliefSpaceData.allBeliefs.map(b=>b.type));beliefSpaceData.selectedHolders=new Set(['self','user']);beliefSpaceData.minConviction=0;initBeliefTypeFilters();renderBeliefSpace();">Reset Filters</button>
+    </div>`;
+    return;
+  }
+  
+  // Prepare Plotly data
+  const x = beliefs.map(b => b.x);
+  const y = beliefs.map(b => b.y);
+  const z = beliefs.map(b => b.z);
+  
+  // Size by conviction
+  const sizes = beliefs.map(b => Math.max(6, b.conviction / 8));
+  
+  // Color by type
+  const colors = beliefs.map(b => BELIEF_TYPE_COLORS[b.type] || '#8b5cf6');
+  
+  // Hover text
+  const hoverText = beliefs.map(b => 
+    `<b>${b.statement.substring(0, 50)}${b.statement.length > 50 ? '...' : ''}</b><br>` +
+    `Type: ${b.type}<br>` +
+    `Holder: ${b.holder}<br>` +
+    `Conviction: ${b.conviction.toFixed(0)}%<br>` +
+    `Maturity: ${b.maturity}<br>` +
+    `Poincaré norm: ${b.poincareNorm.toFixed(3)}`
+  );
+  
+  // Main trace - beliefs
+  const trace = {
+    x, y, z,
+    mode: 'markers',
+    type: 'scatter3d',
+    marker: {
+      size: sizes,
+      color: colors,
+      opacity: 0.85,
+      line: {
+        color: 'rgba(255, 255, 255, 0.4)',
+        width: 0.5
+      }
+    },
+    text: hoverText,
+    hoverinfo: 'text',
+    name: 'Beliefs'
+  };
+  
+  // Origin point - identity core
+  const origin = {
+    x: [0],
+    y: [0],
+    z: [0],
+    mode: 'markers',
+    type: 'scatter3d',
+    marker: {
+      size: 18,
+      color: '#a78bfa',
+      symbol: 'diamond',
+      line: {
+        color: '#ffffff',
+        width: 2
+      }
+    },
+    text: ['<b>Identity Core</b><br>Center of belief space<br>Poincaré origin'],
+    hoverinfo: 'text',
+    name: 'Core'
+  };
+  
+  const layout = {
+    scene: {
+      xaxis: { 
+        title: '', 
+        gridcolor: '#2a2a3a', 
+        zerolinecolor: '#4a4a5a',
+        showbackground: true,
+        backgroundcolor: '#0a0a0f'
+      },
+      yaxis: { 
+        title: '', 
+        gridcolor: '#2a2a3a', 
+        zerolinecolor: '#4a4a5a',
+        showbackground: true,
+        backgroundcolor: '#0a0a0f'
+      },
+      zaxis: { 
+        title: '', 
+        gridcolor: '#2a2a3a', 
+        zerolinecolor: '#4a4a5a',
+        showbackground: true,
+        backgroundcolor: '#0a0a0f'
+      },
+      bgcolor: '#0a0a0f',
+      camera: {
+        eye: { x: 1.8, y: 1.8, z: 1.5 }
+      }
+    },
+    paper_bgcolor: '#0a0a0f',
+    plot_bgcolor: '#0a0a0f',
+    font: { color: '#e0e0e0' },
+    showlegend: false,
+    margin: { l: 0, r: 0, t: 0, b: 0 }
+  };
+  
+  const config = {
+    responsive: true,
+    displayModeBar: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ['toImage', 'lasso2d', 'select2d']
+  };
+  
+  Plotly.newPlot('bs-plot', [trace, origin], layout, config);
+  
+  // Add click handler
+  $('bs-plot').on('plotly_click', function(data) {
+    if (data.points[0].curveNumber === 1) return; // Ignore origin click
+    
+    const pointIndex = data.points[0].pointIndex;
+    const belief = beliefs[pointIndex];
+    
+    showModal(`Belief #${belief.id}`, `
+<div style="font-family: system-ui; line-height: 1.8;">
+  <div style="font-size: 16px; color: #c4b5fd; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #2a2a3a;">
+    "${belief.statement}"
+  </div>
+  
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div><span style="color:#9ca3af;">Type:</span> <strong>${belief.type}</strong></div>
+    <div><span style="color:#9ca3af;">Holder:</span> <strong>${belief.holder}</strong></div>
+    <div><span style="color:#9ca3af;">Conviction:</span> <strong>${belief.conviction.toFixed(0)}%</strong></div>
+    <div><span style="color:#9ca3af;">Maturity:</span> <strong>${belief.maturity}</strong></div>
+    <div><span style="color:#9ca3af;">Poincaré norm:</span> <strong>${belief.poincareNorm.toFixed(4)}</strong></div>
+    <div><span style="color:#9ca3af;">Distance from core:</span> <strong>${belief.distanceFromOrigin.toFixed(2)}</strong></div>
+  </div>
+  
+  <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a3a;">
+    <span style="color:#9ca3af;">3D Position:</span><br>
+    <code style="background:#1a1a24;padding:5px 10px;border-radius:4px;display:inline-block;margin-top:5px;">
+      X: ${belief.x.toFixed(3)}, Y: ${belief.y.toFixed(3)}, Z: ${belief.z.toFixed(3)}
+    </code>
+  </div>
+  
+  <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a3a; font-size: 12px; color: #6b7280;">
+    <strong>Interpretation:</strong><br>
+    ${belief.poincareNorm < 0.3 ? '🎯 Core belief - central to identity' : 
+      belief.poincareNorm < 0.6 ? '📍 Established belief - moderate centrality' : 
+      '🌐 Peripheral belief - may change over time'}
+  </div>
+</div>
+    `);
+  });
+}
+
+function refreshBeliefSpace() {
+  loadBeliefSpace();
+}
+
+function toggleBeliefSpaceFullscreen() {
+  const container = document.querySelector('.belief-space-container');
+  
+  if (container.style.position === 'fixed') {
+    container.style.position = '';
+    container.style.top = '';
+    container.style.left = '';
+    container.style.width = '';
+    container.style.height = '';
+    container.style.zIndex = '';
+  } else {
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.zIndex = '9999';
+  }
+  
+  // Trigger resize
+  setTimeout(() => {
+    Plotly.Plots.resize($('bs-plot'));
+  }, 100);
+}
+</script>
 </body>
 </html>

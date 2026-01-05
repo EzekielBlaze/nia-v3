@@ -1,15 +1,12 @@
 /**
- * AUTONOMOUS EXTRACTION MANAGER
+ * AUTONOMOUS EXTRACTION MANAGER (FORGIVING VERSION)
  * 
  * Orchestrates belief extraction with cognitive autonomy.
- * Nia can refuse, defer, or request consent for extraction.
  * 
- * Integrates:
- * - CognitiveState (energy, capacity)
- * - ExtractionGatekeeper (pre-flight decisions)
- * - TwoPassExtractionEngine (actual extraction)
- * 
- * This is the system that gives Nia real control over her own cognitive processes.
+ * CHANGES:
+ * - Recovery interval: 10 min → 5 min (300000ms)
+ * - Queue processing threshold: 60 → 40 energy
+ * - Uses forgiving CognitiveState and ExtractionGatekeeper
  */
 
 const Database = require('better-sqlite3');
@@ -27,8 +24,8 @@ class AutonomousExtractionManager {
     this.gatekeeper = new ExtractionGatekeeper(this.cognitiveState, this.db);
     this.extractionEngine = new TwoPassExtractionEngine(dbPath, options);
     
-    // Recovery interval
-    this.recoveryInterval = options.recoveryInterval || 600000; // 10 minutes
+    // FASTER RECOVERY: 5 minutes instead of 10
+    this.recoveryInterval = options.recoveryInterval || 300000; // 5 minutes (was 600000)
     this._startRecovery();
     
     logger.info('AutonomousExtractionManager initialized');
@@ -36,8 +33,6 @@ class AutonomousExtractionManager {
   
   /**
    * Request extraction (respects autonomy)
-   * 
-   * Returns: decision object with userMessage if Nia wants to communicate something
    */
   async requestExtraction(conversation) {
     logger.info(`Extraction requested for conversation ${conversation.id || 'new'}`);
@@ -70,15 +65,17 @@ class AutonomousExtractionManager {
     try {
       const result = await this.extractionEngine.processEntry(conversation);
       
-      // Spend energy
-      this.cognitiveState.spendEnergy(evaluation.cost, conversation.id);
+      // Spend energy (only if cost > 0)
+      if (evaluation.cost > 0) {
+        this.cognitiveState.spendEnergy(evaluation.cost, conversation.id);
+      }
       
       logger.info(`Extraction completed: ${result.created} created, ${result.updated} updated`);
       
       return {
         decision: 'extracted',
         result,
-        userMessage: null // No need to tell user
+        userMessage: null
       };
       
     } catch (err) {
@@ -95,7 +92,7 @@ class AutonomousExtractionManager {
       return {
         decision: 'error',
         error: err.message,
-        userMessage: "Something went wrong while processing that - I'll try again later"
+        userMessage: null // Don't burden user with errors
       };
     }
   }
@@ -104,7 +101,6 @@ class AutonomousExtractionManager {
    * Defer extraction to queue
    */
   _deferExtraction(conversation, evaluation) {
-    // Queue for later
     this.gatekeeper.queueExtraction(
       conversation.id,
       evaluation.reason,
@@ -127,12 +123,14 @@ class AutonomousExtractionManager {
    * Skip extraction entirely
    */
   _skipExtraction(conversation, evaluation) {
-    // Mark as skipped (won't queue)
-    this.db.prepare(`
-      UPDATE thinking_log
-      SET processed_for_beliefs = -2  -- Special flag: skipped due to energy
-      WHERE id = ?
-    `).run(conversation.id);
+    // Mark as skipped
+    try {
+      this.db.prepare(`
+        UPDATE thinking_log
+        SET processed_for_beliefs = -2
+        WHERE id = ?
+      `).run(conversation.id);
+    } catch (e) {}
     
     this.cognitiveState.recordDecline(conversation.id, evaluation.reason);
     
@@ -141,7 +139,7 @@ class AutonomousExtractionManager {
     return {
       decision: 'skipped',
       reason: evaluation.reason,
-      userMessage: evaluation.userMessage // Nia expresses her state
+      userMessage: evaluation.userMessage
     };
   }
   
@@ -149,7 +147,6 @@ class AutonomousExtractionManager {
    * Request user consent
    */
   _requestConsent(conversation, evaluation) {
-    // Don't process yet - wait for user response
     logger.info(`Requesting consent for extraction: ${evaluation.reason}`);
     
     return {
@@ -158,7 +155,6 @@ class AutonomousExtractionManager {
       userMessage: evaluation.userMessage,
       conversationId: conversation.id,
       
-      // Provide callback for when user responds
       onConsent: async (consented) => {
         return await this._handleConsentResponse(conversation, evaluation, consented);
       }
@@ -174,16 +170,15 @@ class AutonomousExtractionManager {
     if (!result.proceed) {
       return {
         decision: 'user_declined',
-        userMessage: "Okay, I'll just hold space without analyzing"
+        userMessage: null
       };
     }
     
-    // User consented - process extraction
     return await this._processImmediately(conversation, evaluation);
   }
   
   /**
-   * Process queued extractions during idle/recovery
+   * Process queued extractions
    */
   async processQueue(maxToProcess = 3) {
     logger.debug('Processing extraction queue...');
@@ -218,43 +213,34 @@ class AutonomousExtractionManager {
   }
   
   /**
-   * Get status message for user (if Nia wants to share)
+   * Get status message for user
    */
   getStatusMessage() {
     const status = this.getStatus();
     
-    if (status.state === 'normal') {
-      return null; // No need to mention when doing well
-    }
-    
-    if (status.state === 'tired') {
-      return `*I'm getting a bit tired (${status.energy}% energy)*`;
-    }
-    
-    if (status.state === 'overwhelmed') {
-      return `*I'm honestly overwhelmed right now (${status.energy}% energy, ${status.queuedExtractions} deferred)*`;
-    }
-    
+    // Don't burden user unless critically low
     if (status.state === 'critically_low') {
-      return `*I need rest - I'm at ${status.energy}% and can't process deeply*`;
+      return `*Taking a mental break - energy at ${status.energy}%*`;
     }
+    
+    return null;
   }
   
   /**
-   * Start passive recovery
+   * Start passive recovery - FASTER: every 5 minutes
    */
   _startRecovery() {
     setInterval(() => {
       const before = this.cognitiveState.getEnergy();
-      this.cognitiveState.recover(5); // Recover 5 energy per interval
+      this.cognitiveState.recover(5);
       const after = this.cognitiveState.getEnergy();
       
       if (before !== after) {
         logger.debug(`Passive recovery: ${before} → ${after}`);
       }
       
-      // Process queue during recovery if energy is sufficient
-      if (after >= 60) {
+      // Process queue if energy sufficient (lowered threshold)
+      if (after >= 40) {
         this.processQueue(2).catch(err => {
           logger.error(`Queue processing failed: ${err.message}`);
         });
@@ -262,7 +248,7 @@ class AutonomousExtractionManager {
       
     }, this.recoveryInterval);
     
-    logger.info(`Recovery system started (${this.recoveryInterval}ms interval)`);
+    logger.info(`Recovery system started (${this.recoveryInterval}ms interval = ${this.recoveryInterval / 60000} min)`);
   }
   
   /**
@@ -278,7 +264,6 @@ class AutonomousExtractionManager {
    */
   shutdown() {
     logger.info('AutonomousExtractionManager shutting down');
-    // Save final state
     this.cognitiveState._saveState();
   }
 }

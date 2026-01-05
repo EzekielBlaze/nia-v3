@@ -173,7 +173,7 @@ class BeliefValidator {
     
     // If we found a clear match, use it
     if (bestContext && bestScore > 0 && !isAmbiguous) {
-      logger.info(`Disambiguated "${subject}" → "${bestContext}" (score: ${bestScore}, confidence: ${(confidence * 100).toFixed(0)}%, keywords: ${scores[bestContext].keywords.join(', ')})`);
+      logger.info(`Disambiguated "${subject}" â†’ "${bestContext}" (score: ${bestScore}, confidence: ${(confidence * 100).toFixed(0)}%, keywords: ${scores[bestContext].keywords.join(', ')})`);
       return bestContext;
     }
     
@@ -259,6 +259,37 @@ class BeliefValidator {
     
     // HARD REJECTIONS (return immediately)
     
+    // 0. REJECT third-party facts (these should be memories, not beliefs)
+    // Pattern: Simple fact/preference about someone other than user or self
+    const subjectLower = (candidate.subject || '').toLowerCase().trim();
+    const holder = (candidate.holder || '').toLowerCase();
+    const stmt = candidate.statement || '';
+    
+    // If subject is a third party (not user, not self, not abstract concept),
+    // and it's a simple fact/preference about that person, reject it
+    // This applies regardless of holder - "Gloomie likes X" is a memory whether user or NIA says it
+    const isThirdParty = subjectLower !== 'user' && subjectLower !== 'self' && 
+                         !['technology', 'concept', 'movement', 'abstract'].includes(candidate.type);
+    
+    if (isThirdParty) {
+      // Check if it's a simple attribute/preference statement about a third party
+      const thirdPartyFactPatterns = [
+        /^[A-Z][a-z]+ (likes?|loves?|hates?|enjoys?|prefers?|wants?)/i,
+        /^[A-Z][a-z]+ is (a |an |the )?[a-z]/i,
+        /^[A-Z][a-z]+ has (a |an |the )?[a-z]/i,
+        /loves? [a-z]+$/i,
+        /likes? [a-z]+$/i,
+        /^(my )?(friend|sister|brother|mom|dad|partner)/i
+      ];
+      
+      for (const pattern of thirdPartyFactPatterns) {
+        if (pattern.test(stmt)) {
+          errors.push(`Third-party fact should be a memory, not a belief: "${stmt}"`);
+          return { valid: false, errors, warnings, score: 0 };
+        }
+      }
+    }
+    
     // 1. Subject must be valid (non-empty, proper format)
     if (!candidate.subject || typeof candidate.subject !== 'string') {
       errors.push('Subject is missing or invalid type');
@@ -301,7 +332,7 @@ class BeliefValidator {
       return { valid: false, errors, warnings, score: 0 };
     }
     
-    const stmt = candidate.statement;
+    const statement = candidate.statement;
     
     // 2a. REJECT ephemeral feelings/states (unless tagged ephemeral_fact)
     if (candidate.type !== 'ephemeral_fact') {
@@ -314,7 +345,7 @@ class BeliefValidator {
       ];
       
       for (const pattern of ephemeralPatterns) {
-        if (pattern.test(stmt)) {
+        if (pattern.test(statement)) {
           errors.push('Statement is ephemeral (temporary feeling/state, not a belief)');
           return { valid: false, errors, warnings, score: 0 };
         }
@@ -322,7 +353,7 @@ class BeliefValidator {
     }
     
     // 2b. BELIEF-WORTHINESS: Minimum semantic payload
-    const contentWords = this.countContentWords(stmt);
+    const contentWords = this.countContentWords(statement);
     if (contentWords < 6) {
       errors.push(`Insufficient semantic content (${contentWords} content words, need >= 6)`);
       return { valid: false, errors, warnings, score: 0 };
@@ -330,7 +361,7 @@ class BeliefValidator {
     
     // 2c. BELIEF-WORTHINESS: Must contain belief trigger pattern
     // (unless explicitly tagged as ephemeral_fact or observation)
-    if (!this.hasBeliefTrigger(stmt)) {
+    if (!this.hasBeliefTrigger(statement)) {
       if (candidate.type !== 'ephemeral_fact' && candidate.type !== 'observation') {
         errors.push('Statement lacks belief trigger pattern (no value/stance/principle markers)');
         return { valid: false, errors, warnings, score: 0 };
@@ -341,25 +372,25 @@ class BeliefValidator {
     }
     
     // 3. Reject questions
-    if (this.questionPatterns.test(stmt)) {
+    if (this.questionPatterns.test(statement)) {
       errors.push('Statement is a question');
       return { valid: false, errors, warnings, score: 0 };
     }
     
     // 4. Reject imperatives/plans
-    if (this.imperativePatterns.test(stmt)) {
+    if (this.imperativePatterns.test(statement)) {
       errors.push('Statement is an imperative or plan');
       return { valid: false, errors, warnings, score: 0 };
     }
     
     // 5. Reject temporary states (unless tagged ephemeral_fact)
-    if (this.temporaryStates.test(stmt) && candidate.type !== 'ephemeral_fact') {
+    if (this.temporaryStates.test(statement) && candidate.type !== 'ephemeral_fact') {
       errors.push('Temporary state not tagged as ephemeral_fact');
       return { valid: false, errors, warnings, score: 0 };
     }
     
     // 6. BELIEF-WORTHINESS: Stricter evidence validation
-    const evidenceCheck = this.validateEvidenceQuality(candidate.evidence, stmt);
+    const evidenceCheck = this.validateEvidenceQuality(candidate.evidence, statement);
     if (!evidenceCheck.valid) {
       errors.push(evidenceCheck.reason);
       return { valid: false, errors, warnings, score: 0 };
@@ -481,7 +512,7 @@ class BeliefValidator {
     }
     
     // TODO: Phase 2 - Embedding refresh needed
-    // When Poincaré embeddings are added, trigger re-embedding here
+    // When PoincarÃ© embeddings are added, trigger re-embedding here
     // after normalization changes the statement text
     
     return {

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIA - Your AI Companion</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    #container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+    
+    /* Header with Nia's picture */
+    #header {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      transition: background 1s ease;
+    }
+    
+    #header.tired { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); }
+    #header.overwhelmed { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
+    #header.exhausted { background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%); }
+    
+    #nia-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: white;
+      padding: 5px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    #nia-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    
+    #header-info {
+      flex: 1;
+      color: white;
+    }
+    
+    #header-info h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    #status {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    #energy-bar {
+      width: 200px;
+      height: 6px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    
+    #energy-fill {
+      height: 100%;
+      background: rgba(255,255,255,0.9);
+      width: 100%;
+      transition: width 0.5s ease;
+    }
+    
+    /* Sidebar with diagnostics */
+    #sidebar {
+      background: #f8f9fa;
+      padding: 20px;
+      overflow-y: scroll; /* Always show scrollbar */
+      overflow-x: hidden;
+      border-right: 1px solid #e9ecef;
+      min-height: 0; /* Important for flex scrolling */
+    }
+    
+    .sidebar-section {
+      margin-bottom: 20px;
+    }
+    
+    .sidebar-section h3 {
+      font-size: 14px;
+      color: #6c757d;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .diag-btn {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    
+    .diag-btn:hover {
+      background: #f8f9fa;
+      border-color: #667eea;
+      transform: translateY(-1px);
+    }
+    
+    .diag-btn:active {
+      transform: translateY(0);
+    }
+    
+    /* Stats display */
+    #stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .stat-box {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #667eea;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: #6c757d;
+      margin-top: 4px;
+    }
+    
+    /* Main chat area */
+    #main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    #messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: scroll; /* Always show scrollbar */
+      overflow-x: hidden;
+      background: #ffffff;
+      min-height: 0; /* Important for flex scrolling */
+    }
+    
+    .message {
+      margin-bottom: 15px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      max-width: 80%;
+      line-height: 1.5;
+    }
+    
+    .message.user {
+      background: #667eea;
+      color: white;
+      margin-left: auto;
+    }
+    
+    .message.assistant {
+      background: #f1f3f5;
+      color: #212529;
+    }
+    
+    .message.system {
+      background: #fff3cd;
+      color: #856404;
+      max-width: 100%;
+      text-align: center;
+      font-size: 13px;
+    }
+    
+    .message.debug {
+      background: #1e293b;
+      color: #10b981;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .message.debug-title {
+      background: #0f172a;
+      color: #60a5fa;
+      font-weight: 600;
+      max-width: 100%;
+    }
+    
+    /* Input area */
+    #input-area {
+      padding: 20px;
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+      display: flex;
+      gap: 10px;
+    }
+    
+    #chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #dee2e6;
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+    }
+    
+    #chat-input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    #send-btn {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    
+    #send-btn:hover {
+      background: #5568d3;
+    }
+    
+    #send-btn:disabled {
+      background: #adb5bd;
+      cursor: not-allowed;
+    }
+    
+    /* Loading indicator */
+    .typing {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #667eea;
+      animation: typing 1.4s infinite;
+    }
+    
+    .typing:nth-child(2) { animation-delay: 0.2s; }
+    .typing:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes typing {
+      0%, 60%, 100% { opacity: 0.3; }
+      30% { opacity: 1; }
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f3f5;
+      border-radius: 6px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #adb5bd;
+      border-radius: 6px;
+      border: 2px solid #f1f3f5;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #868e96;
+    }
+    
+    ::-webkit-scrollbar-thumb:active {
+      background: #495057;
+    }
+    
+    /* Firefox scrollbar */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #adb5bd #f1f3f5;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <!-- Header -->
+    <div id="header">
+      <div id="nia-avatar">
+        <img src="/Nia.png" alt="NIA" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><text y=%2250%22 font-size=%2240%22>🐱</text></svg>'">
+      </div>
+      <div id="header-info">
+        <h1>NIA</h1>
+        <div id="status">Connecting...</div>
+        <div id="energy-bar">
+          <div id="energy-fill"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sidebar with diagnostics -->
+    <div id="sidebar">
+      <div id="stats">
+        <div class="stat-box">
+          <div class="stat-value" id="stat-beliefs">0</div>
+          <div class="stat-label">Beliefs</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-scars">0</div>
+          <div class="stat-label">Scars</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-energy">100%</div>
+          <div class="stat-label">Energy</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-state">Normal</div>
+          <div class="stat-label">State</div>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <h3>🔍 Diagnostics</h3>
+        <button class="diag-btn" onclick="runDiagnostic('status')">💻 Daemon Status</button>
+        <button class="diag-btn" onclick="runDiagnostic('cognitive_state')">🧠 Cognitive State</button>
+        <button class="diag-btn" onclick="runDiagnostic('beliefs_full')">💭 Show All Beliefs</button>
+        <button class="diag-btn" onclick="runDiagnostic('scars')">✨ Show Scars</button>
+        <button class="diag-btn" onclick="runDiagnostic('thinking_stats')">📊 Thinking Stats</button>
+        <button class="diag-btn" onclick="runDiagnostic('recent_thinking')">📝 Recent Thinking</button>
+      </div>
+      
+      <div class="sidebar-section">
+        <h3>⚡ Actions</h3>
+        <button class="diag-btn" onclick="runAction('process_beliefs')">🔄 Process Beliefs</button>
+        <button class="diag-btn" onclick="clearChat()">🗑️ Clear Chat</button>
+        <button class="diag-btn" onclick="refreshStats()">🔃 Refresh Stats</button>
+      </div>
+    </div>
+    
+    <!-- Main chat area -->
+    <div id="main">
+      <div id="messages">
+        <div class="message system">Welcome! NIA is starting up...</div>
+      </div>
+      
+      <div id="input-area">
+        <textarea id="chat-input" rows="1" placeholder="Type a message..."></textarea>
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // State
+    let isWaiting = false;
+    let ws = null;
+    
+    // Elements
+    const messagesEl = document.getElementById('messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const statusEl = document.getElementById('status');
+    const energyFill = document.getElementById('energy-fill');
+    const header = document.getElementById('header');
+    
+    // Connect WebSocket for real-time updates
+    function connectWebSocket() {
+      ws = new WebSocket('ws://localhost:3000');
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+      };
+      
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        
+        if (msg.type === 'status') {
+          updateStatus(msg.data.status, msg.data.cogState, msg.data.identity);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket disconnected, reconnecting...');
+        setTimeout(connectWebSocket, 5000);
+      };
+    }
+    
+    // Update UI with status
+    function updateStatus(status, cogState, identity) {
+      if (status && status.running) {
+        statusEl.textContent = `Online (${status.uptime || '...'})`;
+      } else {
+        statusEl.textContent = 'Offline';
+      }
+      
+      if (cogState && cogState.available) {
+        // Update energy
+        document.getElementById('stat-energy').textContent = `${cogState.energy}%`;
+        energyFill.style.width = `${cogState.energy}%`;
+        
+        // Update state
+        document.getElementById('stat-state').textContent = cogState.feeling || 'Normal';
+        
+        // Update header color
+        header.className = '';
+        if (cogState.state === 'tired') header.classList.add('tired');
+        else if (cogState.state === 'overwhelmed') header.classList.add('overwhelmed');
+        else if (cogState.state === 'critically_low') header.classList.add('exhausted');
+      }
+      
+      // Update beliefs and scars counts
+      if (identity) {
+        if (identity.active_beliefs !== undefined) {
+          document.getElementById('stat-beliefs').textContent = identity.active_beliefs || 0;
+        }
+        
+        if (identity.formative_scars) {
+          const scars = (identity.formative_scars.positive || 0) + (identity.formative_scars.negative || 0);
+          document.getElementById('stat-scars').textContent = scars;
+        }
+      }
+    }
+    
+    // Add message to chat
+    function addMessage(content, type = 'assistant') {
+      const msg = document.createElement('div');
+      msg.className = `message ${type}`;
+      msg.textContent = content;
+      messagesEl.appendChild(msg);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    
+    // Add debug message
+    function addDebugMessage(title, data) {
+      const titleMsg = document.createElement('div');
+      titleMsg.className = 'message debug-title';
+      titleMsg.textContent = `🔧 ${title}`;
+      messagesEl.appendChild(titleMsg);
+      
+      const dataMsg = document.createElement('div');
+      dataMsg.className = 'message debug';
+      dataMsg.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      messagesEl.appendChild(dataMsg);
+      
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    
+    // Send chat message
+    async function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text || isWaiting) return;
+      
+      addMessage(text, 'user');
+      chatInput.value = '';
+      
+      isWaiting = true;
+      sendBtn.disabled = true;
+      
+      // Show typing indicator
+      const typingMsg = document.createElement('div');
+      typingMsg.className = 'message assistant';
+      typingMsg.innerHTML = '<span class="typing"></span><span class="typing"></span><span class="typing"></span>';
+      messagesEl.appendChild(typingMsg);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        
+        const data = await response.json();
+        typingMsg.remove();
+        
+        if (data.success) {
+          addMessage(data.response, 'assistant');
+        } else {
+          addMessage(data.response || 'Something went wrong.', 'system');
+        }
+        
+        refreshStats();
+      } catch (err) {
+        typingMsg.remove();
+        addMessage(`Error: ${err.message}`, 'system');
+      }
+      
+      isWaiting = false;
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }
+    
+    // Run diagnostic
+    async function runDiagnostic(command) {
+      try {
+        const response = await fetch(`/api/${command}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        addDebugMessage(command.replace('_', ' ').toUpperCase(), data);
+      } catch (err) {
+        addMessage(`Error running ${command}: ${err.message}`, 'system');
+      }
+    }
+    
+    // Run action
+    async function runAction(action) {
+      try {
+        addMessage(`Running ${action}...`, 'system');
+        const response = await fetch(`/api/${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        addDebugMessage(action.replace('_', ' ').toUpperCase(), data);
+        refreshStats();
+      } catch (err) {
+        addMessage(`Error: ${err.message}`, 'system');
+      }
+    }
+    
+    // Refresh stats
+    async function refreshStats() {
+      try {
+        const identity = await fetch('/api/identity_status').then(r => r.json());
+        
+        if (identity.active_beliefs !== undefined) {
+          document.getElementById('stat-beliefs').textContent = identity.active_beliefs || 0;
+        }
+        
+        if (identity.formative_scars) {
+          const scars = (identity.formative_scars.positive || 0) + (identity.formative_scars.negative || 0);
+          document.getElementById('stat-scars').textContent = scars;
+        }
+      } catch (err) {
+        console.error('Failed to refresh stats:', err);
+      }
+    }
+    
+    // Clear chat
+    function clearChat() {
+      const messages = messagesEl.querySelectorAll('.message:not(.system):first-child');
+      messages.forEach(msg => msg.remove());
+      addMessage('Chat cleared (locally only)', 'system');
+    }
+    
+    // Enter to send
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    
+    // Auto-resize textarea
+    chatInput.addEventListener('input', () => {
+      chatInput.style.height = 'auto';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+    });
+    
+    // Initialize
+    connectWebSocket();
+    refreshStats();
+    
+    // Initial status check
+    setTimeout(() => {
+      runDiagnostic('status');
+    }, 1000);
+  </script>
+</body>
+</html>

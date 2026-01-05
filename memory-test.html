@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NIA Memory Test Console</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: #0f0f1a; 
+      color: #e0e0e0; 
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    h1 { color: #a78bfa; margin-bottom: 5px; }
+    .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 20px; }
+    
+    .status-bar {
+      background: #1a1a2a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+    
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #6b7280;
+    }
+    .status-dot.ok { background: #22c55e; }
+    .status-dot.err { background: #ef4444; }
+    
+    .status-label { color: #9ca3af; font-size: 12px; }
+    .status-value { color: #e0e0e0; font-weight: 600; }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .panel {
+      background: #1a1a2a;
+      border: 1px solid #2a2a3a;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    
+    .panel-title {
+      color: #a78bfa;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2a2a3a;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      color: #9ca3af;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #2a2a3a;
+      border: 1px solid #3a3a4a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #a78bfa;
+    }
+    
+    textarea { resize: vertical; min-height: 80px; }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary { background: #a78bfa; color: #0f0f1a; }
+    .btn-primary:hover { background: #c4b5fd; }
+    
+    .btn-secondary { background: #3a3a4a; color: #e0e0e0; }
+    .btn-secondary:hover { background: #4a4a5a; }
+    
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    
+    .btn-success { background: #22c55e; color: white; }
+    .btn-success:hover { background: #16a34a; }
+    
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    
+    .memory-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .memory-item {
+      background: #2a2a3a;
+      border: 1px solid #3a3a4a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .memory-item:hover {
+      border-color: #a78bfa;
+    }
+    
+    .memory-id {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 5px;
+    }
+    
+    .memory-statement {
+      color: #e0e0e0;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .memory-meta {
+      display: flex;
+      gap: 15px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    
+    .memory-type {
+      background: #3a3a4a;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    
+    .log-panel {
+      background: #0a0a12;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-radius: 4px;
+    }
+    
+    .log-entry.ok { background: rgba(34, 197, 94, 0.1); color: #86efac; }
+    .log-entry.err { background: rgba(239, 68, 68, 0.1); color: #fca5a5; }
+    .log-entry.info { color: #9ca3af; }
+    
+    .chat-panel {
+      grid-column: 1 / -1;
+    }
+    
+    .chat-messages {
+      background: #0a0a12;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 15px;
+    }
+    
+    .chat-msg {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      max-width: 80%;
+    }
+    
+    .chat-msg.user {
+      background: #a78bfa;
+      color: #0f0f1a;
+      margin-left: auto;
+    }
+    
+    .chat-msg.assistant {
+      background: #2a2a3a;
+      color: #e0e0e0;
+    }
+    
+    .chat-msg.system {
+      background: #1a1a2a;
+      color: #9ca3af;
+      font-size: 12px;
+      text-align: center;
+      max-width: 100%;
+    }
+    
+    .chat-input-row {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .chat-input-row input {
+      flex: 1;
+    }
+    
+    .result-box {
+      background: #0a0a12;
+      border: 1px solid #2a2a3a;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .empty-state {
+      color: #6b7280;
+      text-align: center;
+      padding: 30px;
+    }
+    
+    .refresh-btn {
+      float: right;
+      font-size: 12px;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🧠 NIA Memory Test Console</h1>
+<p class="subtitle">Direct memory pipeline testing - bypasses UI complexity</p>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-dot" id="daemon-dot"></div>
+    <span class="status-label">Daemon:</span>
+    <span class="status-value" id="daemon-status">Checking...</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Memories:</span>
+    <span class="status-value" id="memory-count">--</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Embedder:</span>
+    <span class="status-value" id="embedder-status">--</span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">Semantic:</span>
+    <span class="status-value" id="semantic-status">--</span>
+  </div>
+</div>
+
+<div class="grid">
+  
+  <!-- Commit Memory Panel -->
+  <div class="panel">
+    <div class="panel-title">📝 Commit Memory</div>
+    
+    <div class="form-group">
+      <label>Memory Statement</label>
+      <textarea id="mem-input" placeholder="e.g., User's favorite color is blue"></textarea>
+    </div>
+    
+    <div class="form-group">
+      <label>Type</label>
+      <select id="mem-type">
+        <option value="observation">Observation</option>
+        <option value="preference">Preference</option>
+        <option value="fact">Fact</option>
+        <option value="event">Event</option>
+        <option value="realization">Realization</option>
+        <option value="context">Context</option>
+      </select>
+    </div>
+    
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="commitMemory()">💾 Commit Memory</button>
+      <button class="btn btn-secondary" onclick="testCommit()">🧪 Test (traced)</button>
+    </div>
+    
+    <div id="commit-result" class="result-box" style="display:none;"></div>
+  </div>
+  
+  <!-- Recall Panel -->
+  <div class="panel">
+    <div class="panel-title">🔍 Recall Memories</div>
+    
+    <div class="form-group">
+      <label>Search Query</label>
+      <input type="text" id="recall-query" placeholder="e.g., favorite color">
+    </div>
+    
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="recallMemories()">🔍 Search</button>
+      <button class="btn btn-secondary" onclick="browseAll()">📋 Browse All</button>
+    </div>
+    
+    <div id="recall-result" class="result-box" style="display:none;"></div>
+  </div>
+  
+  <!-- Memory Browser -->
+  <div class="panel">
+    <div class="panel-title">
+      📚 Recent Memories
+      <button class="btn btn-secondary refresh-btn" onclick="loadMemories()">🔄 Refresh</button>
+    </div>
+    <div class="memory-list" id="memory-list">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+  
+  <!-- Quick Tests -->
+  <div class="panel">
+    <div class="panel-title">🧪 Quick Tests</div>
+    
+    <div class="btn-group" style="flex-wrap: wrap;">
+      <button class="btn btn-secondary" onclick="testDaemon()">Test Daemon</button>
+      <button class="btn btn-secondary" onclick="testMemoryStats()">Memory Stats</button>
+      <button class="btn btn-secondary" onclick="testDbBrowse()">DB Browse</button>
+      <button class="btn btn-secondary" onclick="testSchema()">DB Schema</button>
+    </div>
+    
+    <div id="test-result" class="result-box" style="display:none;"></div>
+  </div>
+  
+  <!-- Chat Test -->
+  <div class="panel chat-panel">
+    <div class="panel-title">💬 Chat Test (try "remember that I like pizza")</div>
+    
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-msg system">Send a message to test memory extraction from chat</div>
+    </div>
+    
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Try: remember that I love sunny days">
+      <button class="btn btn-primary" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+  
+</div>
+
+<!-- Log Panel -->
+<div class="log-panel" id="log-panel">
+  <div class="log-entry info">Console ready...</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Logging
+function log(type, msg) {
+  const el = document.createElement('div');
+  el.className = `log-entry ${type}`;
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  $('log-panel').insertBefore(el, $('log-panel').firstChild);
+}
+
+// API call wrapper
+async function api(cmd, data = {}) {
+  log('info', `→ ${cmd}`);
+  try {
+    const res = await fetch(`/api/${cmd}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const json = await res.json();
+    if (json.error) {
+      log('err', `← ${cmd}: ${json.error}`);
+    } else {
+      log('ok', `← ${cmd}: OK`);
+    }
+    return json;
+  } catch (err) {
+    log('err', `← ${cmd}: ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+// Update status bar
+async function updateStatus() {
+  // Check daemon
+  const status = await api('status');
+  const running = status.running === true;
+  $('daemon-dot').className = `status-dot ${running ? 'ok' : 'err'}`;
+  $('daemon-status').textContent = running ? `Online (${status.uptime || '?'})` : 'Offline';
+  
+  // Get memory stats
+  const memStats = await api('memory_stats');
+  $('memory-count').textContent = memStats.total ?? '--';
+  $('embedder-status').textContent = memStats.embedderAvailable ? '✅' : '❌';
+  $('semantic-status').textContent = memStats.semanticEnabled ? '✅' : '❌';
+}
+
+// Load recent memories
+async function loadMemories() {
+  const data = await api('db_browse', { table: 'memory_commits', limit: 20 });
+  const list = $('memory-list');
+  
+  if (!data.rows || data.rows.length === 0) {
+    list.innerHTML = '<div class="empty-state">No memories yet. Commit one above!</div>';
+    return;
+  }
+  
+  list.innerHTML = data.rows.map(m => `
+    <div class="memory-item">
+      <div class="memory-id">#${m.id} • ${m.vector_id || 'no-vector'}</div>
+      <div class="memory-statement">${escapeHtml(m.memory_statement)}</div>
+      <div class="memory-meta">
+        <span class="memory-type">${m.memory_type}</span>
+        <span>Trigger: ${m.commit_trigger}</span>
+        <span>Strength: ${m.strength ?? 1.0}</span>
+        <span>${formatTime(m.committed_at)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Commit memory
+async function commitMemory() {
+  const statement = $('mem-input').value.trim();
+  const type = $('mem-type').value;
+  
+  if (!statement) {
+    log('err', 'Enter a memory statement');
+    return;
+  }
+  
+  const result = await api('memory_commit', { statement, type });
+  
+  $('commit-result').style.display = 'block';
+  $('commit-result').textContent = JSON.stringify(result, null, 2);
+  
+  if (result.success || result.memory) {
+    $('mem-input').value = '';
+    log('ok', `Memory committed: #${result.memory?.id}`);
+    loadMemories();
+    updateStatus();
+  }
+}
+
+// Test commit with tracing
+async function testCommit() {
+  const statement = $('mem-input').value.trim() || 'Test memory at ' + new Date().toLocaleTimeString();
+  
+  const result = await api('test_memory_commit', { statement });
+  
+  $('commit-result').style.display = 'block';
+  $('commit-result').textContent = JSON.stringify(result, null, 2);
+  
+  loadMemories();
+  updateStatus();
+}
+
+// Recall memories
+async function recallMemories() {
+  const query = $('recall-query').value.trim();
+  if (!query) {
+    log('err', 'Enter a search query');
+    return;
+  }
+  
+  const result = await api('recall_memories', { query, limit: 10 });
+  
+  $('recall-result').style.display = 'block';
+  $('recall-result').textContent = JSON.stringify(result, null, 2);
+}
+
+// Browse all memories
+async function browseAll() {
+  const result = await api('db_browse', { table: 'memory_commits', limit: 50 });
+  
+  $('recall-result').style.display = 'block';
+  $('recall-result').textContent = JSON.stringify(result, null, 2);
+}
+
+// Quick tests
+async function testDaemon() {
+  const result = await api('status');
+  $('test-result').style.display = 'block';
+  $('test-result').textContent = JSON.stringify(result, null, 2);
+}
+
+async function testMemoryStats() {
+  const result = await api('memory_stats');
+  $('test-result').style.display = 'block';
+  $('test-result').textContent = JSON.stringify(result, null, 2);
+}
+
+async function testDbBrowse() {
+  const result = await api('db_browse', { table: 'memory_commits', limit: 5 });
+  $('test-result').style.display = 'block';
+  $('test-result').textContent = JSON.stringify(result, null, 2);
+}
+
+async function testSchema() {
+  const result = await api('db_schema');
+  $('test-result').style.display = 'block';
+  $('test-result').textContent = JSON.stringify(result, null, 2);
+}
+
+// Chat test
+async function sendChat() {
+  const input = $('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  
+  // Add user message
+  addChatMsg(msg, 'user');
+  input.value = '';
+  
+  // Send to daemon
+  const result = await api('chat', { message: msg });
+  
+  if (result.error) {
+    addChatMsg(`Error: ${result.error}`, 'system');
+  } else {
+    addChatMsg(result.response || 'No response', 'assistant');
+    
+    // Show memory info if any
+    if (result.memory) {
+      if (result.memory.committed) {
+        addChatMsg(`📝 Memory committed: #${result.memory.committed.id}`, 'system');
+        loadMemories();
+        updateStatus();
+      }
+      if (result.memory.recalled > 0) {
+        addChatMsg(`🔍 Recalled ${result.memory.recalled} memories`, 'system');
+      }
+    }
+  }
+}
+
+function addChatMsg(content, type) {
+  const el = document.createElement('div');
+  el.className = `chat-msg ${type}`;
+  el.textContent = content;
+  $('chat-messages').appendChild(el);
+  $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+}
+
+// Utilities
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatTime(ts) {
+  if (!ts) return '--';
+  return new Date(ts).toLocaleString();
+}
+
+// Enter key handlers
+$('mem-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) commitMemory();
+});
+$('recall-query').addEventListener('keydown', e => {
+  if (e.key === 'Enter') recallMemories();
+});
+$('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendChat();
+});
+
+// Initialize
+log('info', 'Memory Test Console loaded');
+updateStatus();
+loadMemories();
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+  updateStatus();
+}, 30000);
+</script>
+
+</body>
+</html>

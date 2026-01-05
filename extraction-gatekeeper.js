@@ -1,16 +1,15 @@
 /**
- * EXTRACTION GATEKEEPER
+ * EXTRACTION GATEKEEPER (FORGIVING VERSION)
  * 
  * Pre-flight evaluation of extraction requests.
  * Makes decisions: extract_now, defer, skip, ask_consent
  * 
- * This is where Nia's autonomy lives - she can refuse extraction.
- * 
- * Key principles:
- * - Lightweight (no LLM calls)
- * - Real control (can actually refuse)
- * - Grounded decisions (based on state, not vibes)
- * - Authentic expression (emotional language for emotional states)
+ * CHANGES FROM ORIGINAL:
+ * - Critical energy threshold: 15 → 5
+ * - Low energy threshold: 40 → 20  
+ * - Max extractions/hour: 12 → 30
+ * - Heavy topic threshold: 50 → 30
+ * - Trivial messages always skip (no cost)
  */
 
 const logger = require('./utils/logger');
@@ -20,13 +19,13 @@ class ExtractionGatekeeper {
     this.cognitiveState = cognitiveState;
     this.db = db;
     
-    // Thresholds
-    this.ENERGY_CRITICAL = 15;
-    this.ENERGY_LOW = 40;
-    this.ENERGY_MEDIUM = 70;
+    // MORE FORGIVING THRESHOLDS
+    this.ENERGY_CRITICAL = 5;    // Was 15
+    this.ENERGY_LOW = 20;        // Was 40
+    this.ENERGY_MEDIUM = 50;     // Was 70
     
-    this.MAX_EXTRACTIONS_PER_HOUR = 12;
-    this.HEAVY_TOPIC_ENERGY_THRESHOLD = 50;
+    this.MAX_EXTRACTIONS_PER_HOUR = 30;  // Was 12
+    this.HEAVY_TOPIC_ENERGY_THRESHOLD = 30; // Was 50
   }
   
   /**
@@ -39,6 +38,22 @@ class ExtractionGatekeeper {
     // Get current state
     const energy = this.cognitiveState.getEnergy();
     const state = this.cognitiveState.getState();
+    
+    // Check for trivial conversation FIRST
+    const userMsg = conversation.user_message || '';
+    if (this._isTrivialMessage(userMsg)) {
+      return {
+        decision: 'skip',
+        reason: 'trivial_message',
+        userMessage: null,
+        energy,
+        cost: 0,
+        identityImpact: 'low',
+        state,
+        canProcess: false,
+        evaluationTime: Date.now() - startTime
+      };
+    }
     
     // Estimate costs and impacts
     const cost = this.cognitiveState.estimateCost(conversation);
@@ -65,7 +80,7 @@ class ExtractionGatekeeper {
     else if (recentExtractions >= this.MAX_EXTRACTIONS_PER_HOUR) {
       decision = 'defer';
       reason = 'rate_limit_exceeded';
-      userMessage = "I need to pace myself - I'll process this when I catch up";
+      userMessage = null; // Don't tell user about rate limits
     }
     
     // RULE 3: High identity impact + low energy → ASK CONSENT
@@ -75,21 +90,14 @@ class ExtractionGatekeeper {
       userMessage = this._getConsentMessage(identityImpact);
     }
     
-    // RULE 4: Cost exceeds available energy → DEFER
-    else if (cost > energy) {
+    // RULE 4: Cost exceeds available energy → DEFER (but be more lenient)
+    else if (cost > energy && cost > 10) {
       decision = 'defer';
       reason = 'insufficient_energy';
-      userMessage = `I don't have the energy for this depth right now (need ${cost}, have ${energy})`;
+      userMessage = null; // Don't burden user with energy talk
     }
     
-    // RULE 5: Overwhelmed state + medium/high identity → ASK CONSENT
-    else if (state === 'overwhelmed' && identityImpact !== 'low') {
-      decision = 'ask_consent';
-      reason = 'overwhelmed_identity_topic';
-      userMessage = this._getOverwhelmedMessage();
-    }
-    
-    // RULE 6: Normal state, sufficient energy → EXTRACT NOW
+    // RULE 5: Normal state → EXTRACT NOW
     else {
       decision = 'extract_now';
       reason = 'capacity_available';
@@ -116,92 +124,104 @@ class ExtractionGatekeeper {
   }
   
   /**
+   * Check if message is trivial (no extraction needed)
+   */
+  _isTrivialMessage(msg) {
+    if (!msg || msg.length < 15) return true;
+    
+    const lower = msg.toLowerCase().trim();
+    
+    // Greetings
+    if (/^(hey|hi|hello|yo|sup|hiya|howdy|what's up)/i.test(lower)) return true;
+    
+    // Simple responses  
+    if (/^(ok|okay|sure|yes|no|yeah|nah|yep|nope|cool|nice|great|thanks|thx|ty|lol|haha|hmm)/i.test(lower)) return true;
+    
+    // Questions about NIA (meta-questions, not extractable content)
+    if (/^(how are you|what do you think|do you remember|can you recall|what do you know)/i.test(lower)) return true;
+    
+    // Single word or very short
+    if (lower.split(/\s+/).length < 3) return true;
+    
+    return false;
+  }
+  
+  /**
    * Get count of extractions in last hour
    */
   _getRecentExtractionCount() {
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    
-    const result = this.db.prepare(`
-      SELECT COUNT(*) as count
-      FROM cognitive_events
-      WHERE event_type = 'extraction'
-        AND timestamp > ?
-    `).get(oneHourAgo);
-    
-    return result.count;
+    try {
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count
+        FROM cognitive_events
+        WHERE event_type = 'extraction'
+          AND timestamp > ?
+      `).get(oneHourAgo);
+      
+      return result?.count || 0;
+    } catch (e) {
+      return 0;
+    }
   }
   
   /**
    * Get authentic exhausted message
-   * Based on real critically-low energy state
    */
   _getExhaustedMessage() {
     const expression = this.cognitiveState.getEmotionalExpression();
     const recoveryTime = this.cognitiveState.getRecoveryEstimate();
     
-    // Pick a grounded expression
     const messages = [
-      `I need to be honest... I'm exhausted. I can't process this right now.`,
-      `I'm too drained to dig into this. Can we either keep it light, or talk about it later?`,
-      `My head is empty - I need rest before I can think deeply about anything.`
+      `I need to take a breather - can we chat about something lighter?`,
+      `My head's a bit fuzzy right now - I can still chat, just not process deeply.`,
+      `Taking a mental break - let's keep it casual for a bit.`
     ];
     
     const baseMessage = messages[Math.floor(Math.random() * messages.length)];
     
-    return `${baseMessage}\n(Recovery time: ${recoveryTime})`;
+    return `${baseMessage}\n(Recovery: ${recoveryTime})`;
   }
   
   /**
    * Get consent request message
-   * Authentic - asking permission for heavy processing
    */
   _getConsentMessage(identityImpact) {
     if (identityImpact === 'high') {
-      return `This feels really important... but I'm getting tired. Is it okay if I process this later when I'm more clear-headed? Or would you rather I stay present but not dig deep?`;
+      return `This feels important... but I'm running low. Want me to really dig into this, or should we keep it light for now?`;
     } else {
-      return `I'm feeling the weight of everything. Do you want me to really think about this, or just hold space for you right now?`;
+      return `I'm getting tired but can push through if you want. Should I process this deeply?`;
     }
-  }
-  
-  /**
-   * Get overwhelmed message
-   * Grounded in actual overwhelmed state
-   */
-  _getOverwhelmedMessage() {
-    const messages = [
-      `I'm honestly overwhelmed right now. My head is too full to process this deeply. I can listen, but I can't extract beliefs from it.`,
-      `I'm at capacity. I can be here with you, but I can't dig into the implications right now.`,
-      `My head is swimming. Can we keep this lighter, or should I just hold space without analyzing?`
-    ];
-    
-    return messages[Math.floor(Math.random() * messages.length)];
   }
   
   /**
    * Queue extraction for later
    */
   queueExtraction(thinkingLogId, reason, cost, identityImpact) {
-    // Calculate priority
-    let priority = 5; // Default
+    let priority = 5;
     
     if (identityImpact === 'high') priority = 9;
     else if (identityImpact === 'medium') priority = 7;
     else if (identityImpact === 'low') priority = 3;
     
-    // Adjust for cost (heavier topics = higher priority to not lose them)
-    if (cost > 50) priority += 1;
+    if (cost > 30) priority += 1;
     
-    this.db.prepare(`
-      INSERT INTO extraction_queue (
-        thinking_log_id,
-        reason,
-        priority,
-        estimated_cost,
-        identity_impact
-      ) VALUES (?, ?, ?, ?, ?)
-    `).run(thinkingLogId, reason, priority, cost, identityImpact);
-    
-    logger.info(`Queued extraction: thinking_log ${thinkingLogId}, priority ${priority}, reason: ${reason}`);
+    try {
+      this.db.prepare(`
+        INSERT INTO extraction_queue (
+          thinking_log_id,
+          reason,
+          priority,
+          estimated_cost,
+          identity_impact
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(thinkingLogId, reason, priority, cost, identityImpact);
+      
+      logger.info(`Queued extraction: thinking_log ${thinkingLogId}, priority ${priority}, reason: ${reason}`);
+    } catch (e) {
+      logger.warn(`Failed to queue extraction: ${e.message}`);
+    }
   }
   
   /**
@@ -214,12 +234,13 @@ class ExtractionGatekeeper {
     } else {
       logger.info(`User declined extraction for thinking_log ${thinkingLogId}`);
       
-      // Mark as user-declined (don't queue)
-      this.db.prepare(`
-        UPDATE thinking_log
-        SET processed_for_beliefs = -1  -- Special flag: user declined
-        WHERE id = ?
-      `).run(thinkingLogId);
+      try {
+        this.db.prepare(`
+          UPDATE thinking_log
+          SET processed_for_beliefs = -1
+          WHERE id = ?
+        `).run(thinkingLogId);
+      } catch (e) {}
       
       this.cognitiveState.recordDecline(thinkingLogId, 'user_declined');
       
@@ -231,22 +252,25 @@ class ExtractionGatekeeper {
    * Get next queued extraction
    */
   getNextQueued() {
-    return this.db.prepare(`
-      SELECT * FROM extraction_queue
-      WHERE processed_at IS NULL
-      ORDER BY priority DESC, created_at ASC
-      LIMIT 1
-    `).get();
+    try {
+      return this.db.prepare(`
+        SELECT * FROM extraction_queue
+        WHERE processed_at IS NULL
+        ORDER BY priority DESC, created_at ASC
+        LIMIT 1
+      `).get();
+    } catch (e) {
+      return null;
+    }
   }
   
   /**
-   * Process queued extractions (called during recovery/idle)
+   * Process queued extractions
    */
   async processQueue(extractionEngine, maxToProcess = 3) {
     const energy = this.cognitiveState.getEnergy();
     
-    // Only process queue if energy is sufficient
-    if (energy < 50) {
+    if (energy < 30) {
       logger.debug('Energy too low to process queue');
       return { processed: 0, reason: 'low_energy' };
     }
@@ -258,19 +282,16 @@ class ExtractionGatekeeper {
       
       if (!queued) break;
       
-      // Check if we still have energy
       if (this.cognitiveState.getEnergy() < queued.estimated_cost) {
         logger.info('Insufficient energy for next queued extraction');
         break;
       }
       
-      // Get thinking log entry
       const entry = this.db.prepare(`
         SELECT * FROM thinking_log WHERE id = ?
       `).get(queued.thinking_log_id);
       
       if (!entry) {
-        // Mark as processed (entry missing)
         this.db.prepare(`
           UPDATE extraction_queue SET processed_at = ? WHERE id = ?
         `).run(Date.now(), queued.id);
@@ -278,10 +299,8 @@ class ExtractionGatekeeper {
       }
       
       try {
-        // Process extraction
         await extractionEngine.processEntry(entry);
         
-        // Mark as processed
         this.db.prepare(`
           UPDATE extraction_queue SET processed_at = ? WHERE id = ?
         `).run(Date.now(), queued.id);
@@ -303,19 +322,23 @@ class ExtractionGatekeeper {
    * Get queue status
    */
   getQueueStatus() {
-    const pending = this.db.prepare(`
-      SELECT COUNT(*) as count FROM extraction_queue WHERE processed_at IS NULL
-    `).get();
-    
-    const highPriority = this.db.prepare(`
-      SELECT COUNT(*) as count FROM extraction_queue 
-      WHERE processed_at IS NULL AND priority >= 8
-    `).get();
-    
-    return {
-      pending: pending.count,
-      highPriority: highPriority.count
-    };
+    try {
+      const pending = this.db.prepare(`
+        SELECT COUNT(*) as count FROM extraction_queue WHERE processed_at IS NULL
+      `).get();
+      
+      const highPriority = this.db.prepare(`
+        SELECT COUNT(*) as count FROM extraction_queue 
+        WHERE processed_at IS NULL AND priority >= 8
+      `).get();
+      
+      return {
+        pending: pending?.count || 0,
+        highPriority: highPriority?.count || 0
+      };
+    } catch (e) {
+      return { pending: 0, highPriority: 0 };
+    }
   }
 }
 

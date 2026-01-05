@@ -1,10 +1,14 @@
 /**
- * COGNITIVE STATE SYSTEM
+ * COGNITIVE STATE SYSTEM (FORGIVING VERSION)
  * 
  * Tracks Nia's mental energy, processing capacity, and state.
- * Provides authentic emotional expression grounded in real system state.
  * 
- * Key principle: Emotional language FOR emotional states, grounded in reality.
+ * CHANGES FROM ORIGINAL:
+ * - Base extraction cost: 10 → 2
+ * - Only heavy topics (scar, trauma, identity) cost significant energy
+ * - Conversation engagement ADDS energy (+1 per message)
+ * - Recovery: every 5 min instead of 10 min
+ * - Trivial conversations cost 0 energy
  */
 
 const Database = require('better-sqlite3');
@@ -39,10 +43,10 @@ class CognitiveState {
       CREATE TABLE IF NOT EXISTS extraction_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         thinking_log_id INTEGER NOT NULL,
-        reason TEXT NOT NULL,                 -- deferred, low_energy, identity_sensitive
-        priority INTEGER DEFAULT 5,           -- 1-10 (10 = highest)
+        reason TEXT NOT NULL,
+        priority INTEGER DEFAULT 5,
         estimated_cost INTEGER,
-        identity_impact TEXT,                 -- low, medium, high
+        identity_impact TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         processed_at INTEGER,
         FOREIGN KEY (thinking_log_id) REFERENCES thinking_log(id)
@@ -53,7 +57,7 @@ class CognitiveState {
       
       CREATE TABLE IF NOT EXISTS cognitive_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        event_type TEXT NOT NULL,             -- declined, deferred, overwhelmed, recovered
+        event_type TEXT NOT NULL,
         thinking_log_id INTEGER,
         energy_before INTEGER,
         energy_after INTEGER,
@@ -109,16 +113,17 @@ class CognitiveState {
   
   /**
    * Update state based on energy level
+   * MORE FORGIVING THRESHOLDS
    */
   _updateState() {
     const oldState = this.state;
     
-    if (this.energy >= 70) {
-      this.state = 'normal';
-    } else if (this.energy >= 40) {
-      this.state = 'tired';
-    } else if (this.energy >= 15) {
-      this.state = 'overwhelmed';
+    if (this.energy >= 50) {
+      this.state = 'normal';      // Was 70
+    } else if (this.energy >= 25) {
+      this.state = 'tired';       // Was 40
+    } else if (this.energy >= 10) {
+      this.state = 'overwhelmed'; // Was 15
     } else {
       this.state = 'critically_low';
     }
@@ -130,39 +135,58 @@ class CognitiveState {
   
   /**
    * Estimate processing cost for a conversation
+   * MUCH MORE FORGIVING - only heavy topics cost significant energy
    */
   estimateCost(conversation) {
-    let cost = 10; // Base cost
-    
     const thinking = conversation.thinking_content || '';
     const userMsg = conversation.user_message || '';
     const combined = thinking + ' ' + userMsg;
     const lowerCombined = combined.toLowerCase();
     
-    // Emotional weight (heavy topics)
-    if (lowerCombined.includes('scar')) cost += 30;
-    if (lowerCombined.includes('conflict')) cost += 20;
-    if (lowerCombined.includes('identity')) cost += 20;
-    if (lowerCombined.includes('trauma')) cost += 25;
-    if (lowerCombined.includes('violat')) cost += 20;
-    if (lowerCombined.includes('betray')) cost += 25;
+    // Check for trivial conversation - NO COST
+    if (this._isTrivialConversation(userMsg)) {
+      return 0;
+    }
     
-    // Value-related (medium impact)
-    if (lowerCombined.includes('value')) cost += 10;
-    if (lowerCombined.includes('believe')) cost += 10;
-    if (lowerCombined.includes('important')) cost += 8;
+    let cost = 2; // Base cost (was 10)
     
-    // Complexity (length-based)
-    const wordCount = combined.split(/\s+/).length;
-    if (wordCount > 200) cost += 15;
-    else if (wordCount > 100) cost += 10;
-    else if (wordCount > 50) cost += 5;
+    // ONLY heavy topics add significant cost
+    // Scar-related (HIGH cost)
+    if (lowerCombined.includes('scar')) cost += 20;
+    if (lowerCombined.includes('trauma')) cost += 20;
+    if (lowerCombined.includes('betray')) cost += 15;
+    if (lowerCombined.includes('violat')) cost += 15;
     
-    // Subject count estimate (rough)
-    const uniqueNouns = this._estimateSubjectCount(combined);
-    cost += uniqueNouns * 2;
+    // Identity conflict (MEDIUM cost)
+    if (lowerCombined.includes('identity') && lowerCombined.includes('conflict')) cost += 10;
+    if (lowerCombined.includes('who i am') && lowerCombined.includes('question')) cost += 10;
     
-    return Math.min(cost, 100); // Cap at 100
+    // Everything else - minimal cost
+    // Removed: value, believe, important (these are normal conversation)
+    // Removed: length-based cost (normal conversations shouldn't drain)
+    // Removed: subject count cost (learning about new things is good)
+    
+    return Math.min(cost, 50); // Cap at 50 (was 100)
+  }
+  
+  /**
+   * Check if conversation is trivial (no extraction cost)
+   */
+  _isTrivialConversation(userMsg) {
+    if (!userMsg || userMsg.length < 20) return true;
+    
+    const lower = userMsg.toLowerCase().trim();
+    
+    // Greetings
+    if (/^(hey|hi|hello|yo|sup|hiya|howdy|what's up|how are you)/i.test(lower)) return true;
+    
+    // Simple responses
+    if (/^(ok|okay|sure|yes|no|yeah|nah|yep|nope|cool|nice|great|thanks|thx|ty|lol|haha)/i.test(lower)) return true;
+    
+    // Questions about NIA's state (meta, not content)
+    if (/^(how are you|what's your|do you remember|can you recall)/i.test(lower)) return true;
+    
+    return false;
   }
   
   /**
@@ -173,30 +197,19 @@ class CognitiveState {
     const userMsg = (conversation.user_message || '').toLowerCase();
     const combined = thinking + ' ' + userMsg;
     
-    // High impact indicators
-    const highImpact = [
-      'identity', 'who i am', 'core belief', 'scar', 'trauma',
-      'violat', 'betray', 'fundamental', 'essence'
-    ];
-    
-    // Medium impact indicators
-    const mediumImpact = [
-      'value', 'principle', 'belief', 'preference', 'tend to',
-      'important to me', 'care about'
-    ];
-    
-    for (const indicator of highImpact) {
-      if (combined.includes(indicator)) {
-        return 'high';
-      }
+    // High impact - ONLY truly heavy stuff
+    const highImpact = ['scar', 'trauma', 'violat', 'betray'];
+    if (highImpact.some(term => combined.includes(term))) {
+      return 'high';
     }
     
-    for (const indicator of mediumImpact) {
-      if (combined.includes(indicator)) {
-        return 'medium';
-      }
+    // Medium impact - identity questioning
+    const mediumImpact = ['identity conflict', 'who i am', 'fundamental'];
+    if (mediumImpact.some(term => combined.includes(term))) {
+      return 'medium';
     }
     
+    // Everything else is low impact
     return 'low';
   }
   
@@ -204,7 +217,6 @@ class CognitiveState {
    * Rough estimate of subject count
    */
   _estimateSubjectCount(text) {
-    // Very simple heuristic: count capitalized words and common nouns
     const words = text.split(/\s+/);
     const nouns = words.filter(w => 
       w.length > 3 && 
@@ -233,6 +245,12 @@ class CognitiveState {
    * Spend energy on extraction
    */
   spendEnergy(cost, thinkingLogId) {
+    // Skip if trivial (cost = 0)
+    if (cost === 0) {
+      logger.debug('Trivial conversation - no energy spent');
+      return this.energy;
+    }
+    
     const before = this.energy;
     this.energy = Math.max(0, this.energy - cost);
     this.lastExtraction = Date.now();
@@ -242,10 +260,14 @@ class CognitiveState {
     this._saveState();
     
     // Log event
-    this.db.prepare(`
-      INSERT INTO cognitive_events (event_type, thinking_log_id, energy_before, energy_after, reason)
-      VALUES ('extraction', ?, ?, ?, 'processed extraction')
-    `).run(thinkingLogId, before, this.energy);
+    try {
+      this.db.prepare(`
+        INSERT INTO cognitive_events (event_type, thinking_log_id, energy_before, energy_after, reason)
+        VALUES ('extraction', ?, ?, ?, 'processed extraction')
+      `).run(thinkingLogId, before, this.energy);
+    } catch (e) {
+      // Ignore FK errors
+    }
     
     logger.info(`Energy spent: ${cost} (${before} → ${this.energy})`);
     
@@ -253,7 +275,26 @@ class CognitiveState {
   }
   
   /**
+   * Gain energy from conversation engagement
+   * Talking is healthy! It should add energy, not drain it.
+   */
+  gainFromEngagement(amount = 1) {
+    const before = this.energy;
+    this.energy = Math.min(100, this.energy + amount);
+    
+    this._updateState();
+    this._saveState();
+    
+    if (this.energy !== before) {
+      logger.debug(`Engagement energy: +${amount} (${before} → ${this.energy})`);
+    }
+    
+    return this.energy;
+  }
+  
+  /**
    * Recover energy (passive over time)
+   * FASTER RECOVERY: +5 energy per call
    */
   recover(amount = 5) {
     const before = this.energy;
@@ -267,10 +308,14 @@ class CognitiveState {
     if (oldState === 'critically_low' && this.state !== 'critically_low') {
       logger.info(`Recovered from critical state (${before} → ${this.energy})`);
       
-      this.db.prepare(`
-        INSERT INTO cognitive_events (event_type, energy_before, energy_after, reason)
-        VALUES ('recovered', ?, ?, 'passive recovery')
-      `).run(before, this.energy);
+      try {
+        this.db.prepare(`
+          INSERT INTO cognitive_events (event_type, energy_before, energy_after, reason)
+          VALUES ('recovered', ?, ?, 'passive recovery')
+        `).run(before, this.energy);
+      } catch (e) {
+        // Ignore
+      }
     }
     
     return this.energy;
@@ -283,97 +328,99 @@ class CognitiveState {
     this.extractionsDeclined++;
     this._saveState();
     
-    this.db.prepare(`
-      INSERT INTO cognitive_events (event_type, thinking_log_id, energy_before, reason)
-      VALUES ('declined', ?, ?, ?)
-    `).run(thinkingLogId, this.energy, reason);
-    
-    logger.info(`Extraction declined: ${reason} (energy: ${this.energy})`);
+    try {
+      this.db.prepare(`
+        INSERT INTO cognitive_events (event_type, thinking_log_id, energy_before, energy_after, reason)
+        VALUES ('declined', ?, ?, ?, ?)
+      `).run(thinkingLogId, this.energy, this.energy, reason);
+    } catch (e) {
+      // Ignore
+    }
   }
   
   /**
-   * Get authentic emotional expression for current state
-   * Grounded in real system state - not performative
+   * Get emotional expression based on current state
    */
   getEmotionalExpression() {
-    // These expressions match actual cognitive states
-    // Not exaggerated, not scripted - authentic
-    
-    if (this.state === 'normal') {
-      return {
-        feeling: "clear",
+    const stateExpressions = {
+      normal: {
+        feeling: 'good',
         canProcess: true,
-        expressions: [
-          "I'm doing well",
-          "I'm clear-headed right now",
-          "I have the energy for this"
-        ]
-      };
-    }
-    
-    if (this.state === 'tired') {
-      return {
-        feeling: "tired",
+        message: null
+      },
+      tired: {
+        feeling: 'tired',
         canProcess: true,
-        expressions: [
-          "I'm getting a bit tired",
-          "I'm still here, but feeling the weight",
-          "I can keep going, but I'm not at full capacity"
-        ]
-      };
-    }
-    
-    if (this.state === 'overwhelmed') {
-      return {
-        feeling: "overwhelmed",
+        message: 'Getting a bit tired, but still here'
+      },
+      overwhelmed: {
+        feeling: 'overwhelmed',
+        canProcess: true, // Changed: can still process when overwhelmed
+        message: 'Feeling a bit scattered, but managing'
+      },
+      critically_low: {
+        feeling: 'exhausted',
         canProcess: false,
-        expressions: [
-          "I'm honestly overwhelmed right now",
-          "My head is too full to process this deeply",
-          "I'm at capacity - I can listen, but I can't dig in right now"
-        ]
-      };
-    }
+        message: 'Need to rest - can chat but not process deeply'
+      }
+    };
     
-    if (this.state === 'critically_low') {
-      return {
-        feeling: "exhausted",
-        canProcess: false,
-        expressions: [
-          "I need to be honest... I'm exhausted",
-          "I can't process anything right now, I need to rest",
-          "I'm too drained - can we take a break?"
-        ]
-      };
-    }
+    return stateExpressions[this.state] || stateExpressions.normal;
   }
   
   /**
    * Get recovery time estimate
+   * FASTER: 5 min intervals, +5 energy each
    */
   getRecoveryEstimate() {
-    if (this.state === 'normal') return "No recovery needed";
+    if (this.energy >= 80) {
+      return 'Fully rested';
+    }
     
-    const energyNeeded = 70 - this.energy;
-    const recoveryRate = 5; // per hour
-    const hoursNeeded = Math.ceil(energyNeeded / recoveryRate);
+    const needed = 80 - this.energy;
+    const intervalsNeeded = Math.ceil(needed / 5);
+    const minutesNeeded = intervalsNeeded * 5; // 5 min per interval
     
-    return `About ${hoursNeeded} hour${hoursNeeded > 1 ? 's' : ''}`;
+    if (minutesNeeded < 60) {
+      return `About ${minutesNeeded} minutes`;
+    }
+    
+    const hours = Math.ceil(minutesNeeded / 60);
+    return `About ${hours} hour${hours > 1 ? 's' : ''}`;
   }
   
   /**
-   * Daily reset (call at midnight)
+   * Daily reset
    */
   dailyReset() {
-    logger.info('Daily cognitive state reset');
-    
+    this.energy = 100;
     this.extractionsToday = 0;
     this.extractionsDeclined = 0;
-    
-    // Restore some energy (sleep equivalent)
-    this.recover(40);
+    this.state = 'normal';
     
     this._saveState();
+    
+    try {
+      this.db.prepare(`
+        INSERT INTO cognitive_events (event_type, energy_before, energy_after, reason)
+        VALUES ('daily_reset', ?, 100, 'daily reset')
+      `).run(this.energy);
+    } catch (e) {
+      // Ignore
+    }
+    
+    logger.info('Daily cognitive reset completed');
+  }
+  
+  /**
+   * Force reset to full energy (for debugging)
+   */
+  forceReset() {
+    this.energy = 100;
+    this.state = 'normal';
+    this._saveState();
+    logger.info('Cognitive state force reset to 100 energy');
+    return this.energy;
   }
 }
 

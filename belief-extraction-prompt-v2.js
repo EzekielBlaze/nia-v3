@@ -77,6 +77,21 @@ CRITICAL RULES:
 4. "holder" is who holds the belief (usually "user" or "self")
 5. "about_id" is what the belief is ABOUT (can be any subject)
 
+WHAT IS A BELIEF vs WHAT IS A MEMORY:
+- BELIEF: What someone THINKS, VALUES, or FEELS ("I think X is good", "I value Y", "I believe Z")
+- MEMORY: Simple FACTS about people/things ("John likes pizza", "Sarah is tall", "Gloomie loves whales")
+
+DO NOT EXTRACT AS BELIEFS:
+- Simple facts about other people stated by the user ("Gloomie likes whales" - this is a MEMORY, not a belief)
+- Attribute statements about third parties ("My friend is tall")
+- Preferences of other people unless user is expressing their OWN belief about it
+
+ONLY EXTRACT AS BELIEFS:
+- User's own values, preferences, thoughts ("I think...", "I believe...", "I value...")
+- NIA's (self) reflections and realizations from thinking
+- Evaluative judgments ("X is good/bad/important")
+- Causal beliefs ("X causes Y")
+
 OUTPUT FORMAT (strict JSON):
 {
   "beliefs": [

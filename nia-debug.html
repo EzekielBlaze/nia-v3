@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIA Debug Console</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    
+    #header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 15px 20px;
+      border-bottom: 2px solid #e94560;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    #header h1 {
+      color: #e94560;
+      font-size: 20px;
+    }
+    
+    .status-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #666;
+    }
+    .status-dot.ok { background: #22c55e; }
+    .status-dot.err { background: #ef4444; }
+    
+    #header-status {
+      display: flex;
+      gap: 15px;
+      margin-left: auto;
+      font-size: 12px;
+    }
+    
+    .header-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    #container {
+      display: grid;
+      grid-template-columns: 220px 1fr 350px;
+      height: calc(100vh - 60px);
+    }
+    
+    #nav {
+      background: #1a1a2e;
+      padding: 15px;
+      border-right: 1px solid #2a2a4a;
+      overflow-y: auto;
+    }
+    
+    .nav-section {
+      margin-bottom: 20px;
+    }
+    
+    .nav-section h3 {
+      color: #e94560;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    
+    .nav-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 5px;
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+    
+    .nav-btn:hover {
+      background: #1f4068;
+      border-color: #e94560;
+    }
+    
+    .nav-btn.active {
+      background: #e94560;
+      color: white;
+    }
+    
+    .nav-btn.danger {
+      background: #7f1d1d;
+      border-color: #991b1b;
+    }
+    
+    .nav-btn.danger:hover {
+      background: #991b1b;
+    }
+    
+    .nav-btn.success {
+      background: #14532d;
+      border-color: #166534;
+    }
+    
+    .nav-btn.success:hover {
+      background: #166534;
+    }
+    
+    #main {
+      padding: 20px;
+      overflow-y: auto;
+      background: #0f0f1a;
+    }
+    
+    #output {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      padding: 15px;
+      overflow-x: auto;
+    }
+    
+    #trace-panel {
+      background: #1a1a2e;
+      border-left: 1px solid #2a2a4a;
+      padding: 15px;
+      overflow-y: auto;
+    }
+    
+    #trace-panel h3 {
+      color: #e94560;
+      font-size: 14px;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    
+    .trace-entry {
+      background: #16213e;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-size: 11px;
+    }
+    
+    .trace-entry.success { border-left: 3px solid #22c55e; }
+    .trace-entry.error { border-left: 3px solid #ef4444; }
+    .trace-entry.info { border-left: 3px solid #3b82f6; }
+    
+    .trace-time {
+      color: #6b7280;
+      font-size: 10px;
+    }
+    
+    .trace-action {
+      color: #e0e0e0;
+      margin: 5px 0;
+    }
+    
+    .trace-detail {
+      color: #9ca3af;
+      font-size: 10px;
+      word-break: break-all;
+    }
+    
+    /* Data Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    
+    .data-table th {
+      background: #16213e;
+      color: #e94560;
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 2px solid #e94560;
+      position: sticky;
+      top: 0;
+    }
+    
+    .data-table td {
+      padding: 8px;
+      border-bottom: 1px solid #2a2a4a;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .data-table tr:hover {
+      background: #1f2937;
+    }
+    
+    .data-table .actions {
+      white-space: nowrap;
+    }
+    
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    
+    .btn-sm.delete {
+      background: #7f1d1d;
+      color: white;
+    }
+    
+    .btn-sm.view {
+      background: #1e40af;
+      color: white;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+    }
+    
+    .stat-card.ok { border-color: #22c55e; }
+    .stat-card.err { border-color: #ef4444; }
+    .stat-card.warn { border-color: #f59e0b; }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #e94560;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      margin-top: 5px;
+    }
+    
+    /* JSON Display */
+    .json-display {
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 15px;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .json-key { color: #e94560; }
+    .json-string { color: #22c55e; }
+    .json-number { color: #f59e0b; }
+    .json-bool { color: #3b82f6; }
+    .json-null { color: #6b7280; }
+    
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.show { display: flex; }
+    
+    .modal-content {
+      background: #1a1a2e;
+      border: 2px solid #e94560;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      width: 90%;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    
+    .modal-close {
+      background: #e94560;
+      border: none;
+      color: white;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    /* Pagination */
+    .pagination {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      align-items: center;
+    }
+    
+    .pagination button {
+      padding: 8px 16px;
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      color: #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    .pagination button:hover { background: #1f4068; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    /* Input styles */
+    input, select, textarea {
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      color: #e0e0e0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #2a2a4a;
+      padding-bottom: 10px;
+    }
+    
+    .tab-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      font-size: 12px;
+    }
+    
+    .tab-btn.active {
+      background: #16213e;
+      border-color: #2a2a4a;
+      border-bottom-color: #16213e;
+      color: #e94560;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #9ca3af;
+    }
+    
+    .loading::after {
+      content: '';
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid #2a2a4a;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .expand-btn {
+      background: none;
+      border: none;
+      color: #e94560;
+      cursor: pointer;
+      font-size: 10px;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>🔧 NIA DEBUG CONSOLE</h1>
+    <div id="header-status">
+      <div class="header-stat">
+        <span class="status-dot" id="dot-daemon"></span>
+        <span>Daemon</span>
+      </div>
+      <div class="header-stat">
+        <span class="status-dot" id="dot-embedder"></span>
+        <span>Embedder</span>
+      </div>
+      <div class="header-stat">
+        <span class="status-dot" id="dot-qdrant"></span>
+        <span>Qdrant</span>
+      </div>
+      <div class="header-stat">
+        <span class="status-dot" id="dot-memory"></span>
+        <span>Memory</span>
+      </div>
+    </div>
+  </div>
+  
+  <div id="container">
+    <div id="nav">
+      <div class="nav-section">
+        <h3>📊 Database Browser</h3>
+        <button class="nav-btn" onclick="browseTable('memory_commits')">💭 Memories</button>
+        <button class="nav-btn" onclick="browseTable('beliefs')">🧠 Beliefs</button>
+        <button class="nav-btn" onclick="browseTable('thinking_log')">💡 Thinking Log</button>
+        <button class="nav-btn" onclick="browseTable('conversation_sessions')">📝 Sessions</button>
+        <button class="nav-btn" onclick="browseTable('conversation_turns')">💬 Turns</button>
+      </div>
+      
+      <div class="nav-section">
+        <h3>🔬 Diagnostics</h3>
+        <button class="nav-btn" onclick="runFullDebug()">🚨 Full System Debug</button>
+        <button class="nav-btn" onclick="runPathDebug()">📂 Path Debug</button>
+        <button class="nav-btn" onclick="runSchemaDebug()">🗄️ Schema Inspector</button>
+        <button class="nav-btn" onclick="viewConversationHistory()">💬 Conversation History</button>
+      </div>
+      
+      <div class="nav-section">
+        <h3>🧪 End-to-End Tests</h3>
+        <button class="nav-btn success" onclick="testEmbedding()">✨ Test Embedding</button>
+        <button class="nav-btn success" onclick="testMemoryCommit()">💾 Test Memory Commit</button>
+        <button class="nav-btn success" onclick="testRecall()">🔍 Test Recall</button>
+      </div>
+      
+      <div class="nav-section">
+        <h3>♻️ Services</h3>
+        <button class="nav-btn" onclick="reinitServices()">🔄 Reinit Services</button>
+      </div>
+      
+      <div class="nav-section">
+        <h3>🗑️ Guilt-Free Delete</h3>
+        <button class="nav-btn danger" onclick="deleteLastMessage()">⏪ Delete Last Message</button>
+        <button class="nav-btn danger" onclick="wipeMemories()">🧹 Wipe All Memories</button>
+        <button class="nav-btn danger" onclick="wipeThinking()">🧹 Wipe Thinking Log</button>
+        <button class="nav-btn danger" onclick="wipeAllTest()">☢️ WIPE ALL TEST DATA</button>
+      </div>
+      
+      <div class="nav-section">
+        <h3>🔧 Custom Query</h3>
+        <textarea id="custom-sql" placeholder="SELECT * FROM memory_commits LIMIT 10" style="width:100%;height:60px;margin-bottom:8px;"></textarea>
+        <button class="nav-btn" onclick="runCustomQuery()">▶️ Run SELECT</button>
+      </div>
+    </div>
+    
+    <div id="main">
+      <div id="output">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+    
+    <div id="trace-panel">
+      <h3>📜 Operation Trace</h3>
+      <div id="trace-log"></div>
+    </div>
+  </div>
+  
+  <!-- Modal for viewing full data -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Details</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+<script>
+// State
+let currentTable = null;
+let currentOffset = 0;
+const PAGE_SIZE = 25;
+
+// API Helper
+async function api(cmd, data = {}) {
+  trace('info', `→ ${cmd}`);
+  try {
+    const r = await fetch('/api/' + cmd, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const j = await r.json();
+    if (j.error) {
+      trace('error', `${cmd}: ${j.error}`);
+    } else {
+      trace('success', `${cmd} ✓`);
+    }
+    return j;
+  } catch (e) {
+    trace('error', `${cmd}: ${e.message}`);
+    throw e;
+  }
+}
+
+// Trace logging
+function trace(type, action, detail = '') {
+  const log = document.getElementById('trace-log');
+  const entry = document.createElement('div');
+  entry.className = `trace-entry ${type}`;
+  entry.innerHTML = `
+    <div class="trace-time">${new Date().toLocaleTimeString()}</div>
+    <div class="trace-action">${action}</div>
+    ${detail ? `<div class="trace-detail">${detail}</div>` : ''}
+  `;
+  log.insertBefore(entry, log.firstChild);
+  
+  // Keep only last 50 entries
+  while (log.children.length > 50) {
+    log.removeChild(log.lastChild);
+  }
+}
+
+// JSON syntax highlighting
+function syntaxHighlight(json) {
+  if (typeof json !== 'string') {
+    json = JSON.stringify(json, null, 2);
+  }
+  return json
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?)/g, (match) => {
+      let cls = 'json-string';
+      if (/:$/.test(match)) {
+        cls = 'json-key';
+      }
+      return `<span class="${cls}">${match}</span>`;
+    })
+    .replace(/\b(true|false)\b/g, '<span class="json-bool">$1</span>')
+    .replace(/\b(null)\b/g, '<span class="json-null">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span class="json-number">$1</span>');
+}
+
+// Output helpers
+function showOutput(html) {
+  document.getElementById('output').innerHTML = html;
+}
+
+function showJson(data, title = '') {
+  showOutput(`
+    ${title ? `<h3 style="color:#e94560;margin-bottom:15px;">${title}</h3>` : ''}
+    <div class="json-display">${syntaxHighlight(data)}</div>
+  `);
+}
+
+function showLoading() {
+  showOutput('<div class="loading">Loading</div>');
+}
+
+// ====================
+// DATABASE BROWSER
+// ====================
+async function browseTable(table, offset = 0) {
+  currentTable = table;
+  currentOffset = offset;
+  showLoading();
+  
+  const data = await api('db_browse', { table, limit: PAGE_SIZE, offset });
+  
+  if (data.error) {
+    showOutput(`<div style="color:#ef4444;">Error: ${data.error}</div>`);
+    return;
+  }
+  
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+      <h3 style="color:#e94560;">${table}</h3>
+      <span style="color:#9ca3af;">${data.total} total rows</span>
+    </div>
+  `;
+  
+  if (data.rows.length === 0) {
+    html += '<div style="color:#9ca3af;text-align:center;padding:40px;">No data</div>';
+  } else {
+    html += '<div style="overflow-x:auto;"><table class="data-table"><thead><tr>';
+    html += '<th>Actions</th>';
+    for (const col of data.columns) {
+      html += `<th>${col.name}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    
+    for (const row of data.rows) {
+      html += '<tr>';
+      html += `<td class="actions">
+        <button class="btn-sm view" onclick="viewRow('${table}', ${row.id})">👁</button>
+        <button class="btn-sm delete" onclick="deleteRow('${table}', ${row.id})">🗑</button>
+      </td>`;
+      for (const col of data.columns) {
+        let val = row[col.name];
+        if (val === null) val = '<span style="color:#6b7280;">NULL</span>';
+        else if (typeof val === 'string' && val.length > 50) {
+          val = val.substring(0, 50) + '...';
+        }
+        html += `<td title="${String(row[col.name]).replace(/"/g, '&quot;')}">${val}</td>`;
+      }
+      html += '</tr>';
+    }
+    
+    html += '</tbody></table></div>';
+    
+    // Pagination
+    html += `
+      <div class="pagination">
+        <button onclick="browseTable('${table}', ${Math.max(0, offset - PAGE_SIZE)})" ${offset === 0 ? 'disabled' : ''}>← Prev</button>
+        <span>Showing ${offset + 1}-${Math.min(offset + PAGE_SIZE, data.total)} of ${data.total}</span>
+        <button onclick="browseTable('${table}', ${offset + PAGE_SIZE})" ${!data.hasMore ? 'disabled' : ''}>Next →</button>
+      </div>
+    `;
+  }
+  
+  showOutput(html);
+}
+
+async function viewRow(table, id) {
+  const data = await api('db_query', { sql: `SELECT * FROM ${table} WHERE id = ${id}` });
+  if (data.rows && data.rows.length > 0) {
+    document.getElementById('modal-title').textContent = `${table} #${id}`;
+    document.getElementById('modal-body').innerHTML = `<div class="json-display">${syntaxHighlight(data.rows[0])}</div>`;
+    document.getElementById('modal').classList.add('show');
+  }
+}
+
+async function deleteRow(table, id) {
+  if (!confirm(`Delete row #${id} from ${table}?`)) return;
+  
+  const result = await api('db_delete', { table, id });
+  if (result.success) {
+    trace('success', `Deleted ${table}#${id}`);
+    browseTable(currentTable, currentOffset);
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+
+// ====================
+// DIAGNOSTICS
+// ====================
+async function runFullDebug() {
+  showLoading();
+  const data = await api('debug_full');
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">🚨 Full System Debug</h3>';
+  
+  // Status cards
+  html += '<div class="stats-grid">';
+  html += `<div class="stat-card ${data.daemon?.running ? 'ok' : 'err'}">
+    <div class="stat-value">${data.daemon?.running ? '✓' : '✗'}</div>
+    <div class="stat-label">Daemon</div>
+  </div>`;
+  html += `<div class="stat-card ${data.services?.memoryEmbedder?.status === 'healthy' ? 'ok' : 'err'}">
+    <div class="stat-value">${data.services?.memoryEmbedder?.status === 'healthy' ? '✓' : '✗'}</div>
+    <div class="stat-label">Embedder 5001</div>
+  </div>`;
+  html += `<div class="stat-card ${data.services?.beliefEmbedder?.status === 'healthy' ? 'ok' : 'err'}">
+    <div class="stat-value">${data.services?.beliefEmbedder?.status === 'healthy' ? '✓' : '✗'}</div>
+    <div class="stat-label">Belief Emb 5002</div>
+  </div>`;
+  html += `<div class="stat-card ${data.services?.qdrant?.status === 'running' ? 'ok' : 'err'}">
+    <div class="stat-value">${data.services?.qdrant?.status === 'running' ? '✓' : '✗'}</div>
+    <div class="stat-label">Qdrant 6333</div>
+  </div>`;
+  html += `<div class="stat-card ${data.database?.memories > 0 ? 'ok' : 'warn'}">
+    <div class="stat-value">${data.database?.memories || 0}</div>
+    <div class="stat-label">Memories</div>
+  </div>`;
+  html += `<div class="stat-card ${data.database?.beliefs > 0 ? 'ok' : 'warn'}">
+    <div class="stat-value">${data.database?.beliefs || 0}</div>
+    <div class="stat-label">Beliefs</div>
+  </div>`;
+  html += `<div class="stat-card ${data.integrators?.vectorModules ? 'ok' : 'err'}">
+    <div class="stat-value">${data.integrators?.vectorModules ? '✓' : '✗'}</div>
+    <div class="stat-label">Vector Modules</div>
+  </div>`;
+  html += `<div class="stat-card ${data.qdrantAvailable ? 'ok' : 'err'}">
+    <div class="stat-value">${data.qdrantAvailable ? '✓' : '✗'}</div>
+    <div class="stat-label">Qdrant Connected</div>
+  </div>`;
+  html += '</div>';
+  
+  // Errors
+  if (data.errors && data.errors.length > 0) {
+    html += '<div style="background:#7f1d1d;border:1px solid #991b1b;border-radius:8px;padding:15px;margin-bottom:20px;">';
+    html += '<h4 style="color:#fca5a5;margin-bottom:10px;">⚠️ Errors</h4>';
+    for (const err of data.errors) {
+      html += `<div style="color:#fecaca;font-size:12px;margin-bottom:5px;">• ${err}</div>`;
+    }
+    html += '</div>';
+  }
+  
+  // Full JSON
+  html += '<h4 style="color:#9ca3af;margin:20px 0 10px;">Full Debug Data</h4>';
+  html += `<div class="json-display">${syntaxHighlight(data)}</div>`;
+  
+  showOutput(html);
+  updateStatusDots(data);
+}
+
+async function runPathDebug() {
+  showLoading();
+  const data = await api('debug_paths');
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">📂 Path Debug</h3>';
+  
+  html += '<div style="margin-bottom:20px;">';
+  html += `<div><strong>CWD:</strong> ${data.cwd}</div>`;
+  html += `<div><strong>__dirname:</strong> ${data.dirname}</div>`;
+  html += `<div><strong>DB Path:</strong> ${data.identityDbPath}</div>`;
+  html += `<div><strong>Vector Modules:</strong> ${data.vectorModulesAvailable ? '✅' : '❌'}</div>`;
+  if (data.vectorLoadError) {
+    html += `<div style="color:#ef4444;"><strong>Vector Error:</strong> ${data.vectorLoadError}</div>`;
+  }
+  html += '</div>';
+  
+  html += '<h4 style="margin-bottom:10px;">Tested Paths</h4>';
+  html += '<table class="data-table"><thead><tr><th>Path</th><th>Status</th><th>Error</th></tr></thead><tbody>';
+  for (const p of data.testedPaths || []) {
+    html += `<tr>
+      <td>${p.path}</td>
+      <td style="color:${p.exists ? '#22c55e' : '#ef4444'}">${p.exists ? '✅ Found' : '❌ Missing'}</td>
+      <td style="color:#9ca3af;font-size:10px;">${p.error || '-'}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  
+  showOutput(html);
+}
+
+async function runSchemaDebug() {
+  showLoading();
+  const data = await api('db_schema');
+  
+  if (data.error) {
+    showOutput(`<div style="color:#ef4444;">Error: ${data.error}</div>`);
+    return;
+  }
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">🗄️ Database Schema</h3>';
+  
+  // Tables
+  html += `<h4 style="margin:20px 0 10px;">${data.tables?.length || 0} Tables</h4>`;
+  for (const table of data.tables || []) {
+    html += `<div style="background:#16213e;border:1px solid #2a2a4a;border-radius:8px;padding:15px;margin-bottom:15px;">`;
+    html += `<h5 style="color:#e94560;margin-bottom:10px;">${table.name}</h5>`;
+    html += '<table class="data-table"><thead><tr><th>Column</th><th>Type</th><th>PK</th><th>Not Null</th><th>Default</th></tr></thead><tbody>';
+    for (const col of table.columns) {
+      html += `<tr>
+        <td>${col.name}</td>
+        <td>${col.type || 'ANY'}</td>
+        <td>${col.primaryKey ? '✓' : ''}</td>
+        <td>${col.notNull ? '✓' : ''}</td>
+        <td>${col.defaultValue || ''}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  
+  // Triggers
+  if (data.triggers?.length > 0) {
+    html += `<h4 style="margin:20px 0 10px;">${data.triggers.length} Triggers</h4>`;
+    for (const trigger of data.triggers) {
+      html += `<div style="background:#16213e;border:1px solid #2a2a4a;border-radius:6px;padding:10px;margin-bottom:10px;">
+        <div style="color:#f59e0b;">${trigger.name}</div>
+        <pre style="font-size:10px;color:#9ca3af;margin-top:5px;overflow-x:auto;">${trigger.sql}</pre>
+      </div>`;
+    }
+  }
+  
+  showOutput(html);
+}
+
+async function viewConversationHistory() {
+  showLoading();
+  const data = await api('get_conversation_history');
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">💬 Conversation History (In-Memory)</h3>';
+  html += `<div style="margin-bottom:15px;color:#9ca3af;">${data.count} messages in memory</div>`;
+  
+  if (data.messages?.length > 0) {
+    html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+    for (const msg of data.messages) {
+      const isUser = msg.role === 'user';
+      html += `<div style="background:${isUser ? '#1e40af' : '#16213e'};border-radius:8px;padding:12px;max-width:80%;${isUser ? 'margin-left:auto;' : ''}">
+        <div style="font-size:10px;color:#9ca3af;margin-bottom:5px;">#${msg.index} - ${msg.role} (${msg.length} chars)</div>
+        <div style="font-size:12px;">${msg.preview}</div>
+      </div>`;
+    }
+    html += '</div>';
+  } else {
+    html += '<div style="color:#6b7280;text-align:center;padding:40px;">No messages in history</div>';
+  }
+  
+  showOutput(html);
+}
+
+// ====================
+// END-TO-END TESTS
+// ====================
+async function testEmbedding() {
+  showLoading();
+  const text = prompt('Enter text to embed:', 'This is a test about cats and sunny days.');
+  if (!text) return;
+  
+  const data = await api('test_embedding', { text });
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">✨ Embedding Test</h3>';
+  html += '<div style="margin-bottom:15px;"><strong>Input:</strong> ' + text + '</div>';
+  
+  html += '<h4 style="margin:15px 0 10px;">Trace</h4>';
+  for (const step of data.trace || []) {
+    const color = step.success === false ? '#ef4444' : step.success === true ? '#22c55e' : '#9ca3af';
+    html += `<div style="background:#16213e;border-left:3px solid ${color};padding:10px;margin-bottom:8px;border-radius:0 6px 6px 0;">
+      <div style="color:${color};font-weight:bold;">Step ${step.step}: ${step.action}</div>
+      <div style="color:#9ca3af;font-size:11px;margin-top:5px;">${JSON.stringify(step, null, 2)}</div>
+    </div>`;
+  }
+  
+  html += `<div style="margin-top:20px;padding:15px;background:${data.success ? '#14532d' : '#7f1d1d'};border-radius:8px;text-align:center;">
+    ${data.success ? '✅ PASSED' : '❌ FAILED'}
+  </div>`;
+  
+  showOutput(html);
+}
+
+async function testMemoryCommit() {
+  showLoading();
+  const statement = prompt('Enter memory to commit:', 'Test memory: I saw a beautiful sunset at ' + new Date().toLocaleTimeString());
+  if (!statement) return;
+  
+  const data = await api('test_memory_commit', { statement });
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">💾 Memory Commit Test</h3>';
+  html += '<div style="margin-bottom:15px;"><strong>Statement:</strong> ' + statement + '</div>';
+  
+  html += '<h4 style="margin:15px 0 10px;">Trace</h4>';
+  for (const step of data.trace || []) {
+    const color = step.success === false ? '#ef4444' : step.success === true ? '#22c55e' : '#9ca3af';
+    html += `<div style="background:#16213e;border-left:3px solid ${color};padding:10px;margin-bottom:8px;border-radius:0 6px 6px 0;">
+      <div style="color:${color};font-weight:bold;">Step ${step.step}: ${step.action}</div>
+      <div style="color:#9ca3af;font-size:11px;margin-top:5px;">${JSON.stringify(step, null, 2)}</div>
+    </div>`;
+  }
+  
+  html += `<div style="margin-top:20px;padding:15px;background:${data.success ? '#14532d' : '#7f1d1d'};border-radius:8px;text-align:center;">
+    ${data.success ? '✅ PASSED' : '❌ FAILED'}
+  </div>`;
+  
+  showOutput(html);
+}
+
+async function testRecall() {
+  showLoading();
+  const query = prompt('Enter recall query:', 'sunset');
+  if (!query) return;
+  
+  const data = await api('recall_memories', { query, limit: 10 });
+  
+  let html = '<h3 style="color:#e94560;margin-bottom:20px;">🔍 Recall Test</h3>';
+  html += '<div style="margin-bottom:15px;"><strong>Query:</strong> ' + query + '</div>';
+  
+  if (data.memories?.length > 0) {
+    html += `<div style="color:#22c55e;margin-bottom:15px;">Found ${data.memories.length} memories</div>`;
+    html += '<table class="data-table"><thead><tr><th>ID</th><th>Statement</th><th>Type</th><th>Strength</th><th>Source</th></tr></thead><tbody>';
+    for (const mem of data.memories) {
+      html += `<tr>
+        <td>${mem.id}</td>
+        <td>${mem.statement?.substring(0, 60) || 'N/A'}...</td>
+        <td>${mem.type}</td>
+        <td>${mem.strength?.toFixed(2) || 'N/A'}</td>
+        <td>${mem.source || 'N/A'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="color:#f59e0b;padding:20px;text-align:center;">No memories found</div>';
+  }
+  
+  html += '<h4 style="margin:20px 0 10px;">Raw Response</h4>';
+  html += `<div class="json-display">${syntaxHighlight(data)}</div>`;
+  
+  showOutput(html);
+}
+
+// ====================
+// DELETE FUNCTIONS
+// ====================
+async function deleteLastMessage() {
+  if (!confirm('Delete last message from conversation history?')) return;
+  
+  const result = await api('delete_last_message');
+  if (result.success) {
+    alert(`Deleted ${result.removed.role} message: "${result.removed.preview}"`);
+  } else {
+    alert(`Failed: ${result.error}`);
+  }
+}
+
+async function wipeMemories() {
+  if (!confirm('⚠️ Delete ALL memories? This cannot be undone!')) return;
+  if (!confirm('Are you REALLY sure?')) return;
+  
+  const result = await api('db_wipe_test', { memories: true });
+  if (result.success) {
+    alert(`Wiped: ${result.wiped.join(', ')}`);
+    browseTable('memory_commits');
+  }
+}
+
+async function wipeThinking() {
+  if (!confirm('⚠️ Delete ALL thinking log entries?')) return;
+  
+  const result = await api('db_wipe_test', { thinking: true });
+  if (result.success) {
+    alert(`Wiped: ${result.wiped.join(', ')}`);
+    browseTable('thinking_log');
+  }
+}
+
+async function wipeAllTest() {
+  if (!confirm('☢️ NUCLEAR OPTION: Delete ALL test data?\n\nThis includes:\n- All memories\n- All thinking log\n- All sessions\n- Conversation history\n\nBeliefs and scars will NOT be deleted.')) return;
+  if (!confirm('FINAL WARNING: This cannot be undone!')) return;
+  
+  const result = await api('db_wipe_test', { all: true });
+  if (result.success) {
+    alert(`Wiped: ${result.wiped.join(', ')}`);
+    runFullDebug();
+  }
+}
+
+// ====================
+// SERVICES
+// ====================
+async function reinitServices() {
+  showLoading();
+  const result = await api('reinit_services');
+  showJson(result, '♻️ Reinit Services Result');
+}
+
+// ====================
+// CUSTOM QUERY
+// ====================
+async function runCustomQuery() {
+  const sql = document.getElementById('custom-sql').value.trim();
+  if (!sql) return;
+  
+  showLoading();
+  const result = await api('db_query', { sql });
+  
+  if (result.error) {
+    showOutput(`<div style="color:#ef4444;">Error: ${result.error}</div>`);
+    return;
+  }
+  
+  let html = `<h3 style="color:#e94560;margin-bottom:15px;">Custom Query Result (${result.count} rows)</h3>`;
+  
+  if (result.rows?.length > 0) {
+    const cols = Object.keys(result.rows[0]);
+    html += '<table class="data-table"><thead><tr>';
+    for (const col of cols) html += `<th>${col}</th>`;
+    html += '</tr></thead><tbody>';
+    for (const row of result.rows) {
+      html += '<tr>';
+      for (const col of cols) {
+        let val = row[col];
+        if (val === null) val = '<span style="color:#6b7280;">NULL</span>';
+        else if (typeof val === 'string' && val.length > 100) val = val.substring(0, 100) + '...';
+        html += `<td>${val}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="color:#9ca3af;text-align:center;padding:20px;">No results</div>';
+  }
+  
+  showOutput(html);
+}
+
+// ====================
+// STATUS DOTS
+// ====================
+function updateStatusDots(data) {
+  document.getElementById('dot-daemon').className = 'status-dot ' + (data.daemon?.running ? 'ok' : 'err');
+  document.getElementById('dot-embedder').className = 'status-dot ' + (data.services?.memoryEmbedder?.status === 'healthy' ? 'ok' : 'err');
+  document.getElementById('dot-qdrant').className = 'status-dot ' + (data.services?.qdrant?.status === 'running' ? 'ok' : 'err');
+  document.getElementById('dot-memory').className = 'status-dot ' + (data.integrators?.memoryDetails?.embedderAvailable ? 'ok' : 'err');
+}
+
+// ====================
+// INIT
+// ====================
+document.addEventListener('DOMContentLoaded', () => {
+  runFullDebug();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+</script>
+</body>
+</html>

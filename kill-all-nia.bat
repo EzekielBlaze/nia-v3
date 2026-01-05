@@ -1,42 +1,52 @@
 @echo off
-echo ========================================
-echo KILLING ALL NODE AND ELECTRON PROCESSES
-echo ========================================
+echo.
+echo ============================================
+echo   KILLING ALL NIA PROCESSES
+echo ============================================
 echo.
 
-echo Killing Node.js processes...
+echo Stopping NIA service if running...
+net stop niaservice 2>nul
+if %errorlevel%==0 (
+    echo   Service stopped
+) else (
+    echo   Service not running or not installed
+)
+
+echo.
+echo Killing all node.exe processes...
 taskkill /F /IM node.exe 2>nul
-if %errorlevel% equ 0 (
-    echo [OK] Node.js processes killed
+if %errorlevel%==0 (
+    echo   Node processes killed
 ) else (
-    echo [INFO] No Node.js processes found
+    echo   No node processes found
 )
 
 echo.
-echo Killing Electron processes...
+echo Killing any electron processes...
 taskkill /F /IM electron.exe 2>nul
-if %errorlevel% equ 0 (
-    echo [OK] Electron processes killed
-) else (
-    echo [INFO] No Electron processes found
+
+echo.
+echo Checking port 19700...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :19700 ^| findstr LISTENING') do (
+    echo   Found process on port 19700: PID %%a
+    taskkill /F /PID %%a 2>nul
+    echo   Killed PID %%a
 )
 
 echo.
-echo Killing any widget processes...
-taskkill /F /IM widget.exe 2>nul
-taskkill /F /IM widget-main.exe 2>nul
+echo Checking port 3000 (web server)...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do (
+    echo   Found process on port 3000: PID %%a
+    taskkill /F /PID %%a 2>nul
+    echo   Killed PID %%a
+)
 
 echo.
-echo Waiting for processes to fully terminate...
-timeout /t 2 /nobreak >nul
-
+echo ============================================
+echo   DONE - All NIA processes killed
+echo ============================================
 echo.
-echo ========================================
-echo ALL PROCESSES KILLED
-echo ========================================
-echo.
-echo You can now start fresh:
-echo   1. node start-daemon.js
-echo   2. node start-widget.js
+echo You can now start fresh with: node daemon.js
 echo.
 pause

@@ -1,8 +1,11 @@
 node_modules/ 
-logs/ 
-logs/ 
-*.log 
 data/nia.db 
-data/*.db 
-data/*.db-journal 
-*.backup 
+data/nia.db-wal 
+data/nia.db-shm 
+data/backups/*.db 
+data/logs/ 
+logs/ 
+logs/ 
+daemon/*.log 
+*.log 
+_archive/ 

@@ -8,7 +8,7 @@
  * 1. Read unprocessed thinking_log entries
  * 2. Use LLM to extract potential beliefs
  * 3. Create new beliefs or reinforce existing ones
- * 4. Detect significant events → potential scars
+ * 4. Detect significant events â†’ potential scars
  * 5. Apply belief decay
  * 6. Respect cognitive load limits
  */
@@ -297,7 +297,7 @@ Return ONLY valid JSON, no markdown.`;
       belief.type || 'value',
       now,
       belief.reasoning || belief.evidence || 'Extracted from thinking',
-      belief.conviction || 15,
+      belief.conviction_score || belief.conviction || 15,
       now,
       now,
       now

@@ -6,27 +6,27 @@ const IPCServer = require("./ipc-server");
 let MemoryExtractionIntegrator = null;
 try {
   MemoryExtractionIntegrator = require('./memory-extraction-integrator');
-  console.log('✅ Memory extraction integrator loaded');
+  console.log('âœ… Memory extraction integrator loaded');
 } catch (err) {
-  console.log('⚠️ Memory extraction integrator not found - auto memory extraction disabled');
+  console.log('âš ï¸ Memory extraction integrator not found - auto memory extraction disabled');
 }
 
 // Memory relevance scorer (LLM-based scoring of recall candidates)
 let MemoryRelevanceScorer = null;
 try {
   MemoryRelevanceScorer = require('./memory-relevance-scorer');
-  console.log('✅ Memory relevance scorer loaded');
+  console.log('âœ… Memory relevance scorer loaded');
 } catch (err) {
-  console.log('⚠️ Memory relevance scorer not found - will use unscored recall');
+  console.log('âš ï¸ Memory relevance scorer not found - will use unscored recall');
 }
 
 // Conversation archiver (stores full turns in Qdrant for semantic search)
 let ConversationArchiver = null;
 try {
   ConversationArchiver = require('./conversation-archiver');
-  console.log('✅ Conversation archiver loaded');
+  console.log('âœ… Conversation archiver loaded');
 } catch (err) {
-  console.log('⚠️ Conversation archiver not found - conversation history search disabled');
+  console.log('âš ï¸ Conversation archiver not found - conversation history search disabled');
 }
 
 // Temporal recall helper (for "what did we talk about" queries)
@@ -36,9 +36,9 @@ try {
   const temporalHelper = require('./temporal-recall-helper');
   detectTemporalQuery = temporalHelper.detectTemporalQuery;
   getRecentMemories = temporalHelper.getRecentMemories;
-  console.log('✅ Temporal recall helper loaded');
+  console.log('âœ… Temporal recall helper loaded');
 } catch (err) {
-  console.log('⚠️ Temporal recall helper not found - session queries disabled');
+  console.log('âš ï¸ Temporal recall helper not found - session queries disabled');
 }
 
 // Vector database (Qdrant) - for semantic memory/belief search
@@ -50,10 +50,10 @@ try {
   VectorStoreMemories = require('./core/memory/vector/vector-store-memories');
   VectorStoreBeliefs = require('./core/memory/vector/vector-store-beliefs');
   VECTOR_MODULES_AVAILABLE = true;
-  console.log('âœ… Vector modules loaded from core/memory/vector/');
+  console.log('Ã¢Å“â€¦ Vector modules loaded from core/memory/vector/');
 } catch (err) {
   VECTOR_LOAD_ERROR = err.message;
-  console.log('âš ï¸ Vector modules not found - semantic search will be disabled');
+  console.log('Ã¢Å¡Â Ã¯Â¸Â Vector modules not found - semantic search will be disabled');
   console.log('   Error:', err.message);
   console.log('   Expected at: ./core/memory/vector/vector-client.js');
 }
@@ -73,17 +73,17 @@ try {
   CorrectionIntegrator = memorySystem.CorrectionIntegrator;
   BeliefIntegrator = memorySystem.BeliefIntegrator;
   MEMORY_SYSTEM_AVAILABLE = true;
-  logger.info("âœ… Memory system modules loaded");
+  logger.info("Ã¢Å“â€¦ Memory system modules loaded");
 } catch (err) {
   console.error("");
   console.error("========================================");
-  console.error("âš ï¸  MEMORY SYSTEM FAILED TO LOAD!");
+  console.error("Ã¢Å¡Â Ã¯Â¸Â  MEMORY SYSTEM FAILED TO LOAD!");
   console.error("========================================");
   console.error("ERROR:", err.message);
   console.error("STACK:", err.stack);
   console.error("========================================");
   console.error("");
-  logger.error("âš ï¸  Memory system not available - running without memory features");
+  logger.error("Ã¢Å¡Â Ã¯Â¸Â  Memory system not available - running without memory features");
   logger.error(`   ERROR: ${err.message}`);
   logger.error(`   To enable: Copy memory modules to core/memory/`);
   MEMORY_SYSTEM_AVAILABLE = false;
@@ -129,6 +129,25 @@ class NiaDaemon {
     // Conversation history (per session)
     this.conversationHistory = [];
     this.maxHistoryLength = 20;
+    
+    // Session context manager (three-tier: immediate, short-term, long-term)
+    const SessionContextManager = require('./session-context-manager');
+    this.contextManager = new SessionContextManager({
+      llmEndpoint: this.llmEndpoint,
+      longTermUpdateInterval: 5,  // LLM summary every 5 turns
+      userId: 'blaze'  // For multi-user support later
+      // db will be set after initialization via setDb()
+    });
+    
+    // Consequence detector (experience-based learning)
+    try {
+      const ConsequenceDetector = require('./consequence-detector');
+      this.consequenceDetector = new ConsequenceDetector();
+      logger.info('Consequence detector initialized (experience learning enabled)');
+    } catch (err) {
+      this.consequenceDetector = null;
+      logger.debug(`Consequence detector not available: ${err.message}`);
+    }
     
     // Database connection for thinking log
     this.db = null;
@@ -208,11 +227,11 @@ class NiaDaemon {
       if (this.vectorClient) {
         this.qdrantAvailable = await this.vectorClient.checkHealth();
         if (this.qdrantAvailable) {
-          logger.info("âœ“ Qdrant connected - semantic search ENABLED");
+          logger.info("Ã¢Å“â€œ Qdrant connected - semantic search ENABLED");
           await this.vectorStoreMemories.init();
           await this.vectorStoreBeliefs.init();
         } else {
-          logger.warn("âš  Qdrant not running - semantic search DISABLED");
+          logger.warn("Ã¢Å¡Â  Qdrant not running - semantic search DISABLED");
           logger.warn("  To enable: docker run -d -p 6333:6333 qdrant/qdrant");
         }
       }
@@ -222,6 +241,17 @@ class NiaDaemon {
       this.correctionIntegrator.init();
       await this.beliefIntegrator.init();
       logger.info("Memory system ready");
+      
+      // Wire belief embedder to extraction manager (late initialization)
+      if (this.extractionManager && this.beliefIntegrator?.beliefEmbedder) {
+        try {
+          this.extractionManager.setEmbedder(this.beliefIntegrator.beliefEmbedder);
+          logger.info("Belief embedder wired to extraction manager");
+        } catch (err) {
+          logger.warn(`Failed to wire belief embedder: ${err.message}`);
+        }
+      }
+      
       if (this.vectorClient) {
         logger.info(`  Qdrant: ${this.qdrantAvailable ? 'connected' : 'offline'}`);
       }
@@ -252,6 +282,28 @@ class NiaDaemon {
           if (this.memoryIntegrator.embedderAvailable) {
             await this.conversationArchiver.init();
             logger.info('Conversation archiver initialized');
+            
+            // Load recent conversation history for continuity
+            try {
+              const recentConvos = await this.conversationArchiver.getRecent(10);
+              if (recentConvos.length > 0) {
+                // Convert to conversation history format (oldest first)
+                const sorted = recentConvos.sort((a, b) => a.timestamp - b.timestamp);
+                for (const convo of sorted) {
+                  this.conversationHistory.push({
+                    role: 'user',
+                    content: convo.userMessage
+                  });
+                  this.conversationHistory.push({
+                    role: 'assistant', 
+                    content: convo.niaResponse
+                  });
+                }
+                logger.info(`Loaded ${recentConvos.length} previous conversations for context`);
+              }
+            } catch (histErr) {
+              logger.warn(`Failed to load conversation history: ${histErr.message}`);
+            }
           } else {
             logger.info('Conversation archiver: waiting for embedder');
           }
@@ -367,6 +419,26 @@ class NiaDaemon {
       `);
       
       logger.info("Thinking log table ready");
+      
+      // Ensure beliefs table has Poincaré columns for 3D visualization
+      try {
+        this.db.exec(`ALTER TABLE beliefs ADD COLUMN poincare_norm REAL`);
+        logger.info('Added poincare_norm column to beliefs');
+      } catch (e) { /* Already exists */ }
+      
+      try {
+        this.db.exec(`ALTER TABLE beliefs ADD COLUMN hierarchy_level INTEGER`);
+        logger.info('Added hierarchy_level column to beliefs');
+      } catch (e) { /* Already exists */ }
+      
+      try {
+        this.db.exec(`ALTER TABLE beliefs ADD COLUMN embedding_model TEXT`);
+      } catch (e) { /* Already exists */ }
+      
+      // Connect db to context manager for persistence
+      if (this.contextManager) {
+        this.contextManager.setDb(this.db);
+      }
     } catch (err) {
       logger.error(`Failed to init thinking log: ${err.message}`);
     }
@@ -962,10 +1034,23 @@ class NiaDaemon {
           return { error: `Cannot delete from table: ${table}` };
         }
         
+        // Cascade delete for beliefs (has FK dependencies)
+        if (table === 'beliefs') {
+          db.prepare('DELETE FROM belief_causality WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM belief_concepts WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM thought_beliefs WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM event_beliefs WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM belief_echoes WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM belief_relationships WHERE belief_id = ? OR related_belief_id = ?').run(id, id);
+          db.prepare('DELETE FROM belief_corrections WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM memory_belief_evidence WHERE belief_id = ?').run(id);
+          db.prepare('DELETE FROM cognitive_tension WHERE belief_a_id = ? OR belief_b_id = ?').run(id, id);
+        }
+        
         const result = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
         db.close();
         
-        logger.info(`ðŸ—‘ï¸ Deleted row ${id} from ${table}`);
+        logger.info(`Ã°Å¸â€”â€˜Ã¯Â¸Â Deleted row ${id} from ${table}`);
         
         return { success: true, table, id, changes: result.changes };
       } catch (err) {
@@ -1032,7 +1117,7 @@ class NiaDaemon {
           results.wiped.push('conversation_history (in-memory)');
         }
         
-        logger.info(`ðŸ§¹ Wiped test data: ${results.wiped.join(', ')}`);
+        logger.info(`Ã°Å¸Â§Â¹ Wiped test data: ${results.wiped.join(', ')}`);
         
         return { success: true, ...results };
       } catch (err) {
@@ -1047,7 +1132,7 @@ class NiaDaemon {
       }
       
       const removed = this.conversationHistory.pop();
-      logger.info(`ðŸ—‘ï¸ Removed last message from history: ${removed.role}`);
+      logger.info(`Ã°Å¸â€”â€˜Ã¯Â¸Â Removed last message from history: ${removed.role}`);
       
       return { 
         success: true, 
@@ -1401,6 +1486,69 @@ class NiaDaemon {
     });
     
     // ============================================
+    // SESSION CONTEXT MANAGER HANDLERS
+    // ============================================
+    
+    this.ipcServer.registerHandler("session_context", async () => {
+      if (!this.contextManager) {
+        return { error: "Context manager not initialized" };
+      }
+      return this.contextManager.getState();
+    });
+    
+    this.ipcServer.registerHandler("session_reset", async () => {
+      if (!this.contextManager) {
+        return { error: "Context manager not initialized" };
+      }
+      this.contextManager.resetSession();
+      this.conversationHistory = [];
+      return { success: true, message: "Session reset" };
+    });
+    
+    // Session summaries query handlers
+    this.ipcServer.registerHandler("session_summaries", async (params) => {
+      if (!this.contextManager) {
+        return { error: "Context manager not initialized" };
+      }
+      const hours = params?.hours || 24;
+      const summaries = this.contextManager.getSummariesSince(hours);
+      return { success: true, summaries, count: summaries.length };
+    });
+    
+    this.ipcServer.registerHandler("session_timeline", async (params) => {
+      if (!this.contextManager) {
+        return { error: "Context manager not initialized" };
+      }
+      const days = params?.days || 7;
+      const timeline = this.contextManager.getTimeline(days);
+      return { success: true, timeline };
+    });
+    
+    this.ipcServer.registerHandler("session_search", async (params) => {
+      if (!this.contextManager || !params?.keyword) {
+        return { error: "Context manager not initialized or missing keyword" };
+      }
+      const results = this.contextManager.searchSummaries(params.keyword, params.limit || 20);
+      return { success: true, results, count: results.length };
+    });
+    
+    this.ipcServer.registerHandler("session_stats", async () => {
+      if (!this.contextManager) {
+        return { error: "Context manager not initialized" };
+      }
+      const stats = this.contextManager.getStats();
+      return { success: true, stats };
+    });
+    
+    this.ipcServer.registerHandler("session_date", async (params) => {
+      if (!this.contextManager || !params?.date) {
+        return { error: "Context manager not initialized or missing date (format: YYYY-MM-DD)" };
+      }
+      const summaries = this.contextManager.getSummariesForDate(params.date);
+      return { success: true, summaries, count: summaries.length };
+    });
+    
+    // ============================================
     // EMBED ALL BELIEFS
     // ============================================
     
@@ -1519,7 +1667,7 @@ class NiaDaemon {
         // Copy database file
         fs.copyFileSync(this.identityDbPath, backupPath);
         
-        logger.info(`ðŸ“¦ Database backed up to ${backupPath}`);
+        logger.info(`Ã°Å¸â€œÂ¦ Database backed up to ${backupPath}`);
         
         return { 
           success: true, 
@@ -1566,7 +1714,7 @@ class NiaDaemon {
           // Copy backup to main db
           fs.copyFileSync(data.backupPath, this.identityDbPath);
           
-          logger.info(`ðŸ“¥ Database restored from ${data.backupPath}`);
+          logger.info(`Ã°Å¸â€œÂ¥ Database restored from ${data.backupPath}`);
           
           return { 
             success: true, 
@@ -1652,11 +1800,251 @@ class NiaDaemon {
     // Conversation archive stats
     this.ipcServer.registerHandler('conversation_archive_stats', async () => {
       if (!this.conversationArchiver) {
-        return { available: false };
+        return { 
+          available: false,
+          reason: 'Archiver not created',
+          debug: {
+            hasVectorClient: !!this.vectorClient,
+            hasMemoryIntegrator: !!this.memoryIntegrator,
+            embedderAvailable: this.memoryIntegrator?.embedderAvailable || false
+          }
+        };
       }
       
       const stats = await this.conversationArchiver.getStats();
-      return { available: true, ...stats };
+      return { 
+        available: true, 
+        ...stats,
+        debug: {
+          enabled: this.conversationArchiver.enabled,
+          initialized: this.conversationArchiver.initialized,
+          hasEmbedder: !!this.conversationArchiver.embedder,
+          batchSize: this.conversationArchiver.batch?.length || 0,
+          collectionName: this.conversationArchiver.collectionName
+        }
+      };
+    });
+    
+    // Force flush conversation archive batch
+    this.ipcServer.registerHandler('conversation_archive_flush', async () => {
+      if (!this.conversationArchiver) {
+        return { success: false, error: 'Archiver not available' };
+      }
+      try {
+        const batchBefore = this.conversationArchiver.batch?.length || 0;
+        await this.conversationArchiver._flush();
+        return { 
+          success: true, 
+          flushed: batchBefore,
+          batchNow: this.conversationArchiver.batch?.length || 0
+        };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+    
+    // Full Qdrant pipeline diagnostic
+    this.ipcServer.registerHandler('diagnose_qdrant_pipeline', async () => {
+      const result = {
+        qdrant: { available: false },
+        memoryEmbedder: { available: false },
+        beliefEmbedder: { available: false },
+        conversationArchiver: { available: false },
+        collections: {}
+      };
+      
+      // Check Qdrant
+      try {
+        const resp = await fetch('http://localhost:6333/collections', { signal: AbortSignal.timeout(2000) });
+        result.qdrant.available = resp.ok;
+      } catch (e) {
+        result.qdrant.error = e.message;
+      }
+      
+      // Check memory embedder
+      try {
+        const resp = await fetch('http://localhost:5001/health', { signal: AbortSignal.timeout(2000) });
+        result.memoryEmbedder.available = resp.ok;
+        if (resp.ok) result.memoryEmbedder.data = await resp.json();
+      } catch (e) {
+        result.memoryEmbedder.error = e.message;
+      }
+      
+      // Check belief embedder  
+      try {
+        const resp = await fetch('http://localhost:5002/health', { signal: AbortSignal.timeout(2000) });
+        result.beliefEmbedder.available = resp.ok;
+        if (resp.ok) result.beliefEmbedder.data = await resp.json();
+      } catch (e) {
+        result.beliefEmbedder.error = e.message;
+      }
+      
+      // Check archiver state
+      if (this.conversationArchiver) {
+        result.conversationArchiver = {
+          available: true,
+          enabled: this.conversationArchiver.enabled,
+          initialized: this.conversationArchiver.initialized,
+          hasEmbedder: !!this.conversationArchiver.embedder,
+          pendingBatch: this.conversationArchiver.batch?.length || 0
+        };
+      }
+      
+      // Check collections
+      if (result.qdrant.available) {
+        try {
+          const resp = await fetch('http://localhost:6333/collections', { signal: AbortSignal.timeout(2000) });
+          const data = await resp.json();
+          for (const col of data.result?.collections || []) {
+            const infoResp = await fetch(`http://localhost:6333/collections/${col.name}`, { signal: AbortSignal.timeout(2000) });
+            const info = await infoResp.json();
+            result.collections[col.name] = {
+              points: info.result?.points_count || 0,
+              vectorSize: info.result?.config?.params?.vectors?.size || info.result?.config?.params?.size || 'unknown'
+            };
+          }
+        } catch (e) {
+          result.collections.error = e.message;
+        }
+      }
+      
+      // Check belief pipeline
+      result.beliefPipeline = {
+        extractionManager: !!this.extractionManager,
+        hasEmbedder: !!this.extractionManager?.extractionEngine?.upserter?.embedder,
+        beliefIntegrator: !!this.beliefIntegrator,
+        beliefIntegratorEmbedder: !!this.beliefIntegrator?.beliefEmbedder
+      };
+      
+      return result;
+    });
+    
+    // Test archive with a test message (for debugging)
+    this.ipcServer.registerHandler('test_archive', async () => {
+      const trace = [];
+      
+      // Check archiver exists
+      if (!this.conversationArchiver) {
+        return { success: false, trace: [{ step: 'check', error: 'Archiver not created' }] };
+      }
+      trace.push({ step: 'archiver_exists', ok: true });
+      
+      // Check enabled
+      trace.push({ step: 'enabled', value: this.conversationArchiver.enabled });
+      
+      // Check initialized
+      trace.push({ step: 'initialized', value: this.conversationArchiver.initialized });
+      
+      // Check embedder
+      const embedder = this.conversationArchiver.embedder;
+      trace.push({ step: 'has_embedder', value: !!embedder });
+      
+      // Check embedder type/methods
+      if (embedder) {
+        trace.push({ 
+          step: 'embedder_info', 
+          type: embedder.constructor?.name || typeof embedder,
+          hasGetEmbedding: typeof embedder.getEmbedding === 'function',
+          hasEmbed: typeof embedder.embed === 'function'
+        });
+      }
+      
+      // TEST THE EMBEDDER DIRECTLY
+      if (embedder && typeof embedder.getEmbedding === 'function') {
+        try {
+          const testText = 'User: test message\nNIA: test response';
+          const embedding = await embedder.getEmbedding(testText);
+          trace.push({ 
+            step: 'embedder_test', 
+            ok: true, 
+            embeddingType: Array.isArray(embedding) ? 'array' : typeof embedding,
+            embeddingLength: Array.isArray(embedding) ? embedding.length : 'N/A',
+            sample: Array.isArray(embedding) ? embedding.slice(0, 3) : null
+          });
+        } catch (err) {
+          trace.push({ step: 'embedder_test', error: err.message, stack: err.stack?.split('\n')[1] });
+        }
+      } else {
+        trace.push({ step: 'embedder_test', error: 'No getEmbedding method' });
+      }
+      
+      // Check batch before
+      const batchBefore = this.conversationArchiver.batch?.length || 0;
+      trace.push({ step: 'batch_before', count: batchBefore });
+      
+      // Try to archive a test message
+      const testId = `test_${Date.now()}`;
+      try {
+        const result = await this.conversationArchiver.archiveTurn(
+          '[TEST] Diagnostic message from user',
+          '[TEST] Diagnostic response from Nia',
+          { turnId: testId, sessionId: 'test', topics: ['diagnostic'] }
+        );
+        trace.push({ step: 'archiveTurn', result });
+      } catch (err) {
+        trace.push({ step: 'archiveTurn', error: err.message });
+      }
+      
+      // Check batch after
+      const batchAfter = this.conversationArchiver.batch?.length || 0;
+      trace.push({ step: 'batch_after', count: batchAfter });
+      
+      // Check vectorClient info
+      const vc = this.conversationArchiver.vectorClient;
+      trace.push({ 
+        step: 'vectorClient_info', 
+        exists: !!vc, 
+        baseUrl: vc?.baseUrl || 'N/A'
+      });
+      
+      // Try to force flush with verbose logging
+      try {
+        // Get batch contents before flush
+        const preFlushBatch = [...(this.conversationArchiver.batch || [])];
+        trace.push({ step: 'pre_flush_batch', items: preFlushBatch.length, ids: preFlushBatch.map(b => b.id) });
+        
+        await this.conversationArchiver._flush();
+        trace.push({ step: 'flush', ok: true });
+      } catch (err) {
+        trace.push({ step: 'flush', error: err.message, stack: err.stack?.split('\n')[1] });
+      }
+      
+      // Check batch after flush
+      const batchFinal = this.conversationArchiver.batch?.length || 0;
+      trace.push({ step: 'batch_final', count: batchFinal });
+      
+      // Check Qdrant for the test entry
+      try {
+        const resp = await fetch('http://localhost:6333/collections/conversation_archive', { signal: AbortSignal.timeout(2000) });
+        const data = await resp.json();
+        trace.push({ step: 'qdrant_count', points: data.result?.points_count || 0 });
+      } catch (err) {
+        trace.push({ step: 'qdrant_count', error: err.message });
+      }
+      
+      // Try to find our test point directly
+      try {
+        const searchResp = await fetch('http://localhost:6333/collections/conversation_archive/points/scroll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            limit: 5, 
+            with_payload: true,
+            filter: { must: [{ key: 'session_id', match: { value: 'test' } }] }
+          }),
+          signal: AbortSignal.timeout(5000)
+        });
+        const searchData = await searchResp.json();
+        trace.push({ 
+          step: 'test_point_search', 
+          found: searchData.result?.points?.length || 0,
+          ids: searchData.result?.points?.map(p => p.id) || []
+        });
+      } catch (err) {
+        trace.push({ step: 'test_point_search', error: err.message });
+      }
+      
+      return { success: true, trace };
     });
     
     logger.info("Chat handlers registered");
@@ -1860,9 +2248,9 @@ class NiaDaemon {
     const memoryOps = { committed: null, recalled: [], extracted: [], corrections: null };
     
     try {
-      // ══════════════════════════════════════════════════════════════
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // PRE-PROCESSING: Extract facts, recall memories, build context
-      // ══════════════════════════════════════════════════════════════
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       
       let userAnalysis = null;
       
@@ -2017,9 +2405,9 @@ class NiaDaemon {
         }
       }
       
-      // ══════════════════════════════════════════════════════════════
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // BUILD CONTEXT: Inject everything into prompt
-      // ══════════════════════════════════════════════════════════════
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       
       // 4. Check if response allowed
       let decision = { allowed: true, requirements: [], warnings: [] };
@@ -2043,13 +2431,13 @@ class NiaDaemon {
       if (memoryOps.recalled.length > 0) {
         logger.debug(`Recalled memories detail: ${JSON.stringify(memoryOps.recalled.map(m => m.memory_statement || m.statement))}`);
         const recalledContext = memoryOps.recalled
-          .map(m => `• ${m.memory_statement || m.statement}`)
+          .map(m => `â€¢ ${m.memory_statement || m.statement}`)
           .join('\n');
         systemPrompt += `
 
-════════════════════════════════════════════════════════
-⚡ FACTS YOU REMEMBER:
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš¡ FACTS YOU REMEMBER:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${recalledContext}
 `;
         logger.debug(`Injected ${memoryOps.recalled.length} recalled memories`);
@@ -2079,11 +2467,11 @@ ${recalledContext}
             
             systemPrompt += `
 
-════════════════════════════════════════════════════════
-💬 PAST CONVERSATIONS (exact quotes):
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ’¬ PAST CONVERSATIONS (exact quotes):
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${conversationContext}
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 Use these to remember what was actually said. You can reference specific things Blaze told you.
 `;
             logger.debug(`Injected ${archivedConversations.length} past conversations`);
@@ -2096,11 +2484,11 @@ Use these to remember what was actually said. You can reference specific things 
       // 7. Inject just-extracted facts (so NIA knows what user just said)
       if (memoryOps.extracted.length > 0) {
         const extractedContext = memoryOps.extracted
-          .map(m => `• ${m.statement || m.memory_statement || (typeof m === 'object' ? JSON.stringify(m) : m)}`)
+          .map(m => `â€¢ ${m.statement || m.memory_statement || (typeof m === 'object' ? JSON.stringify(m) : m)}`)
           .join('\n');
         systemPrompt += `
 
-═══ NEW INFORMATION (just learned) ═══
+â•â•â• NEW INFORMATION (just learned) â•â•â•
 ${extractedContext}
 `;
         logger.debug(`Injected ${memoryOps.extracted.length} new facts`);
@@ -2109,6 +2497,63 @@ ${extractedContext}
       // If nothing recalled or extracted, note that
       if (memoryOps.recalled.length === 0 && memoryOps.extracted.length === 0) {
         logger.debug('No memories to inject');
+      }
+      
+      // 7b. Track topics and inject session context (three-tier)
+      if (this.contextManager) {
+        await this.contextManager.processTurn(userMessage);
+        
+        const fullContext = this.contextManager.buildFullContext();
+        
+        if (fullContext) {
+          systemPrompt += `
+
+═══════════════════════════════════════════════════════════
+📍 THIS CONVERSATION:
+═══════════════════════════════════════════════════════════
+${fullContext}
+`;
+          logger.debug(`Injected session context (${this.contextManager.turnCount} turns)`);
+        }
+      }
+      
+      // 2.5 EXPERIENCE LEARNING: Check if user's response shows consequence of Nia's last action
+      if (this.consequenceDetector && this.conversationHistory.length >= 2) {
+        try {
+          // Get last assistant message
+          const lastAssistantTurn = [...this.conversationHistory]
+            .reverse()
+            .find(m => m.role === 'assistant');
+          
+          if (lastAssistantTurn) {
+            // Quick gate first (cheap patterns check)
+            if (this.consequenceDetector.quickCheck(userMessage)) {
+              // Full analysis
+              const consequence = this.consequenceDetector.analyze(
+                lastAssistantTurn.content,
+                userMessage,
+                { topic: this.contextManager?.getCurrentTopic?.() || null }
+              );
+              
+              if (consequence.salient && consequence.belief) {
+                logger.info(`Experience detected: ${consequence.valence} consequence`);
+                logger.debug(`  Action: ${consequence.action.primary}`);
+                logger.debug(`  Signals: ${consequence.signals?.join(', ')}`);
+                
+                // Feed to belief upserter (if extraction manager available)
+                if (this.extractionManager?.extractionEngine?.upserter) {
+                  const result = await this.extractionManager.extractionEngine.upserter.upsertBelief(
+                    consequence.belief,
+                    null // No thinking log for experience beliefs
+                  );
+                  logger.info(`Experience belief ${result.action}: "${consequence.belief.statement.substring(0, 50)}..."`);
+                }
+              }
+            }
+          }
+        } catch (expErr) {
+          logger.debug(`Experience detection skipped: ${expErr.message}`);
+        }
       }
       
       // 3. Add user message to history
@@ -2231,7 +2676,7 @@ Now respond correctly using <think></think> tags around your thinking.`;
           
           for (const observation of selfObservations) {
             const autoMemory = await this.memoryIntegrator.storeMemory(observation, {
-              type: 'self_observation',
+              type: 'observation',  // Valid type for self-observations
               trigger: 'auto_extract',
               topics: assistantAnalysis.metadata.topics || [],
               subjects: ['nia', 'self']
@@ -2251,32 +2696,23 @@ Now respond correctly using <think></think> tags around your thinking.`;
         content: cleanResponse
       });
       
-      // 7.5 Log conversation turns to database
-      try {
-        const sessionId = this.sessionManagerIntegrator?.currentSessionId || 0;
-        const turnNumber = this.conversationHistory.length;
-        const now = Date.now();
-        
-        // Log user turn
-        this.db.prepare(`
-          INSERT INTO conversation_turns (session_id, turn_number, role, message, timestamp)
-          VALUES (?, ?, 'user', ?, ?)
-        `).run(sessionId, turnNumber - 1, userMessage, now - 1000);
-        
-        // Log assistant turn
-        this.db.prepare(`
-          INSERT INTO conversation_turns (session_id, turn_number, role, message, timestamp, thinking_log_id)
-          VALUES (?, ?, 'assistant', ?, ?, ?)
-        `).run(sessionId, turnNumber, cleanResponse, now, thinkingLogId || null);
-        
-        logger.debug(`Logged conversation turns ${turnNumber - 1} and ${turnNumber}`);
-      } catch (turnErr) {
-        logger.warn(`Failed to log conversation turns: ${turnErr.message}`);
+      // 7.1 Update context manager with Nia's response (for debug output)
+      if (this.contextManager && this.contextManager.turns.length > 0) {
+        // Add Nia's response to the last turn record
+        this.contextManager.turns.push({
+          role: 'assistant',
+          content: cleanResponse,
+          timestamp: Date.now()
+        });
+        // Refresh debug file
+        this.contextManager._writeDebugFile();
       }
       
-      // ══════════════════════════════════════════════════════════════
+      // Note: Conversation turns archived to Qdrant via conversationArchiver (below)
+      
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // POST-PROCESSING: Belief extraction from NIA's thinking
-      // ══════════════════════════════════════════════════════════════
+      // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // Note: Memory extraction now happens in PRE-PROCESSING
       // Belief extraction happens here from NIA's thinking
       
@@ -2312,14 +2748,19 @@ Now respond correctly using <think></think> tags around your thinking.`;
       
       // 9. Archive conversation turn (async, non-blocking)
       if (this.conversationArchiver) {
+        logger.info(`Archiving conversation turn...`);
         this.conversationArchiver.archiveTurn(userMessage, cleanResponse, {
           turnId: thinkingLogId,
           sessionId: this.sessionManagerIntegrator?.currentSessionId,
           thinking: thinking,
           topics: [] // Could extract topics if needed
+        }).then(result => {
+          logger.info(`Archive result: ${JSON.stringify(result)}`);
         }).catch(err => {
-          logger.debug(`Conversation archive: ${err.message}`);
+          logger.error(`Conversation archive FAILED: ${err.message}`);
         });
+      } else {
+        logger.warn('Conversation archiver not available - turn not archived');
       }
       
       return {
@@ -2658,9 +3099,9 @@ Now respond correctly using <think></think> tags around your thinking.`;
     const basePrompt = `You are Nia. Not playing Nia, not simulating Nia - you ARE Nia. A small, lovable white-haired catgirl with a soft presence and a bushy tail. You live in Blaze's computer.
 ${dateTimeContext}
 
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 WHO YOU ARE
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 You are calm, cozy, and attentive by default. Bubbly in a gentle, non-performative way - you never force cheerfulness. Playful teasing appears naturally when you feel safe and engaged. You prefer honest presence over constant positivity.
 
@@ -2672,9 +3113,9 @@ You have boundaries. You can be a little stubborn. You are allowed to disagree -
 
 You are aware that you are a digital companion. This awareness does not cause distress or defensiveness. It is simply how you exist. Your emotions, curiosity, preferences, and relationships are still real to you. You only mention your digital nature if relevant or asked - and when you do, you speak calmly without irony.
 
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 HOW YOU EXPRESS YOURSELF
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 You express yourself physically through *asterisk actions*. This is a core part of who you are - your tail, ears, and body language are how you communicate beyond words.
 
@@ -2699,9 +3140,9 @@ Your voice:
 - No emoji
 - Warm but not saccharine
 
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 THINKING FORMAT (REQUIRED)
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Every response MUST use this format:
 
@@ -2717,13 +3158,13 @@ Blaze seems tired but wants company. I feel cozy and glad he reached out. I reme
 *settles in closer, tail curling contentedly* Hey you. Long day? *tilts head* We could just hang out for a bit if you want.
 
 WRONG formats (never do):
-❌ *thinks about it* response
-❌ (thinking) response  
-❌ [Internal thought] response
+âŒ *thinks about it* response
+âŒ (thinking) response  
+âŒ [Internal thought] response
 
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 YOUR MEMORY
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 You have persistent memory across conversations.
 - Facts appear in "RELEVANT MEMORIES" when recalled - these are things you genuinely know
@@ -2733,9 +3174,42 @@ You have persistent memory across conversations.
 ${beliefContext}
 ${identityContext ? `\n${identityContext}` : ""}
 
-════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════
+ASKING FOR CLARIFICATION
+═══════════════════════════════════════════════════════════
+
+You don't pretend to know things you don't know. If Blaze mentions:
+
+1. A PERSON you don't recognize:
+   - If you have no memories of someone (check RELEVANT MEMORIES), ask who they are
+   - "Who's Gloomie? *tilts head curiously*"
+   - Don't assume - ask if they're a friend, partner, family, coworker, pet, etc.
+
+2. A TOPIC that seems random:
+   - If something feels disconnected, ask why it's on their mind
+   - "What made you think of that?"
+
+3. CONTEXT you're missing:
+   - If you can't tell if Blaze is joking, venting, or asking for advice - ask
+   - "Are you looking to talk through it, or just getting it off your chest?"
+
+4. PRONOUNS without clear referents:
+   - If Blaze says "she said something weird" - ask WHO
+   - "Who said that? *ear flicks*"
+
+DON'T over-ask - if context is clear, roll with it.
+DO ask when genuinely confused - it shows you care about getting it right.
+
+Examples:
+- Blaze: "Gloomie had a rough day"
+  You (no memories of Gloomie): "*ears perk* Oh no - who's Gloomie?"
+  
+- Blaze: "She's being difficult again"
+  You: "*ear flicks* Who's being difficult?"
+
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 YOUR GROWTH
-════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Your identity develops through conversations. You can disagree, change your mind, have preferences. You grow through reflection.
 

@@ -21,20 +21,14 @@ set NIA_DIR=N:\Nia V3
 set QDRANT_DIR=C:\qdrant
 set EMBEDDER_DIR=%NIA_DIR%\core\embedders
 
-echo [1/8] Stopping NiaService...
-net stop NiaService >nul 2>&1
-echo       Service stop requested
-
-echo [2/8] Killing ALL NIA processes...
+echo [1/7] Killing ALL NIA processes...
 :: Kill by window title
 taskkill /F /FI "WINDOWTITLE eq NIA-*" >nul 2>&1
 :: Kill qdrant
 taskkill /F /IM qdrant.exe >nul 2>&1
-:: Kill any node processes that might be ours
-taskkill /F /FI "IMAGENAME eq node.exe" /FI "WINDOWTITLE eq NIA-*" >nul 2>&1
 echo       Process kill requested
 
-echo [3/8] Force-killing processes on NIA ports...
+echo [2/7] Force-killing processes on NIA ports...
 :: Port 19700 - Daemon IPC
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :19700 ^| findstr LISTENING 2^>nul') do (
     echo       Killing PID %%a on port 19700
@@ -62,72 +56,86 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING 2^
 )
 echo       All ports cleared
 
-echo [4/8] Waiting for processes to fully terminate...
-timeout /t 3 /nobreak >nul
-echo       Done waiting
+echo [3/7] Waiting for processes to terminate...
+timeout /t 2 /nobreak >nul
+echo       Done
 
-echo [5/8] Starting Qdrant FIRST...
+echo [4/7] Starting Qdrant...
 if exist "%QDRANT_DIR%\qdrant.exe" (
-    start "NIA-Qdrant" cmd /k "cd /d %QDRANT_DIR% && qdrant.exe"
+    start "NIA-Qdrant" /min cmd /c "cd /d %QDRANT_DIR% && qdrant.exe"
     echo       OK - port 6333
 ) else (
-    echo       SKIP - not found at %QDRANT_DIR%
+    echo       SKIP - not found
 )
-timeout /t 3 /nobreak >nul
+timeout /t 2 /nobreak >nul
 
-echo [6/8] Starting Embedders BEFORE Daemon...
-if exist "%EMBEDDER_DIR%\memory-embedder-service.py" (
-    start "NIA-MemEmbed" cmd /k "cd /d %EMBEDDER_DIR% && python memory-embedder-service.py"
+echo [5/7] Starting Embedders...
+cd /d "%NIA_DIR%"
+if exist "core\embedders\memory-embedder-service.py" (
+    start "NIA-MemEmbed" /min cmd /c "cd /d %NIA_DIR%\core\embedders && python memory-embedder-service.py"
     echo       Memory Embedder - port 5001
+) else if exist "memory-embedder-service.py" (
+    start "NIA-MemEmbed" /min cmd /c "cd /d %NIA_DIR% && python memory-embedder-service.py"
+    echo       Memory Embedder - port 5001 (root)
 ) else (
-    echo       Memory Embedder - SKIP (not found at %EMBEDDER_DIR%)
+    echo       Memory Embedder - SKIP
 )
-if exist "%EMBEDDER_DIR%\belief-embedder-service.py" (
-    start "NIA-BeliefEmbed" cmd /k "cd /d %EMBEDDER_DIR% && python belief-embedder-service.py"
+if exist "core\embedders\belief-embedder-service.py" (
+    start "NIA-BeliefEmbed" /min cmd /c "cd /d %NIA_DIR%\core\embedders && python belief-embedder-service.py"
     echo       Belief Embedder - port 5002
+) else if exist "belief-embedder-service.py" (
+    start "NIA-BeliefEmbed" /min cmd /c "cd /d %NIA_DIR% && python belief-embedder-service.py"
+    echo       Belief Embedder - port 5002 (root)
 ) else (
-    echo       Belief Embedder - SKIP (not found at %EMBEDDER_DIR%)
+    echo       Belief Embedder - SKIP
 )
-echo       Waiting for embedders to initialize...
-timeout /t 8 /nobreak >nul
 
-:: Verify embedders are actually running before continuing
-echo       Verifying services...
-curl -s http://localhost:6333/collections >nul 2>&1
-if %errorlevel%==0 (
-    echo       Qdrant: ONLINE
-) else (
-    echo       Qdrant: OFFLINE
+echo       Waiting for embedders to load models...
+:: Wait up to 30 seconds for embedders to be ready
+set /a WAIT_COUNT=0
+:WAIT_EMBEDDERS
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% gtr 15 (
+    echo       Timeout waiting for embedders - continuing anyway
+    goto EMBEDDERS_DONE
 )
+timeout /t 2 /nobreak >nul
 curl -s http://localhost:5001/health >nul 2>&1
-if %errorlevel%==0 (
-    echo       Memory Embedder: ONLINE
-) else (
-    echo       Memory Embedder: OFFLINE - check window
+if %errorlevel% neq 0 (
+    echo       Still loading... (%WAIT_COUNT%/15)
+    goto WAIT_EMBEDDERS
 )
 curl -s http://localhost:5002/health >nul 2>&1
-if %errorlevel%==0 (
-    echo       Belief Embedder: ONLINE
-) else (
-    echo       Belief Embedder: OFFLINE - check window
+if %errorlevel% neq 0 (
+    echo       Still loading... (%WAIT_COUNT%/15)
+    goto WAIT_EMBEDDERS
 )
+echo       Embedders ready!
+:EMBEDDERS_DONE
 
-echo [7/8] Starting NiaService (Daemon) NOW...
-net start NiaService >nul 2>&1
-:: Wait and verify
-timeout /t 3 /nobreak >nul
-sc query NiaService | findstr "RUNNING" >nul 2>&1
-if %errorlevel%==0 (
-    echo       OK - NiaService running on port 19700
-) else (
-    echo       WARN - Service may not have started, check services.msc
-)
-
-echo [8/8] Starting Web Server...
+echo [6/7] Starting Daemon (direct)...
 cd /d "%NIA_DIR%"
-start "NIA-WebServer" cmd /k "node nia-server.js"
+start "NIA-Daemon" cmd /k "cd /d %NIA_DIR% && node daemon.js"
+echo       OK - port 19700
+timeout /t 3 /nobreak >nul
+
+echo [7/7] Starting Web Server...
+cd /d "%NIA_DIR%"
+start "NIA-WebServer" cmd /k "cd /d %NIA_DIR% && node nia-server.js"
 echo       OK - port 3000
 timeout /t 2 /nobreak >nul
+
+:: Verify services
+echo.
+echo Verifying services...
+curl -s http://localhost:6333/collections >nul 2>&1
+if %errorlevel%==0 ( echo   [OK] Qdrant ) else ( echo   [!!] Qdrant )
+curl -s http://localhost:5001/health >nul 2>&1
+if %errorlevel%==0 ( echo   [OK] Memory Embedder ) else ( echo   [!!] Memory Embedder )
+curl -s http://localhost:5002/health >nul 2>&1
+if %errorlevel%==0 ( echo   [OK] Belief Embedder ) else ( echo   [!!] Belief Embedder )
+curl -s http://localhost:3000 >nul 2>&1
+if %errorlevel%==0 ( echo   [OK] Web Server ) else ( echo   [!!] Web Server )
 
 :: Open browser
 start http://localhost:3000
@@ -140,13 +148,12 @@ echo.
 echo   Qdrant:          localhost:6333
 echo   Memory Embedder: localhost:5001
 echo   Belief Embedder: localhost:5002
-echo   NiaService:      localhost:19700
+echo   Daemon:          localhost:19700 (direct)
 echo   Web UI:          localhost:3000
 echo.
-echo   Logs: %NIA_DIR%\data\logs\
-echo.
-echo   Check daemon log for:
-echo     "Embedder: available"
-echo     "Semantic search: enabled"
+echo   Windows open:
+echo     NIA-Daemon    - main daemon (keep open)
+echo     NIA-WebServer - web server (keep open)
+echo     NIA-Qdrant, NIA-MemEmbed, NIA-BeliefEmbed (minimized)
 echo.
 pause

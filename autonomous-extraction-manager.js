@@ -4,8 +4,8 @@
  * Orchestrates belief extraction with cognitive autonomy.
  * 
  * CHANGES:
- * - Recovery interval: 10 min → 5 min (300000ms)
- * - Queue processing threshold: 60 → 40 energy
+ * - Recovery interval: 10 min â†’ 5 min (300000ms)
+ * - Queue processing threshold: 60 â†’ 40 energy
  * - Uses forgiving CognitiveState and ExtractionGatekeeper
  */
 
@@ -22,13 +22,23 @@ class AutonomousExtractionManager {
     // Core systems
     this.cognitiveState = new CognitiveState(this.db);
     this.gatekeeper = new ExtractionGatekeeper(this.cognitiveState, this.db);
-    this.extractionEngine = new TwoPassExtractionEngine(dbPath, options);
+    this.extractionEngine = new TwoPassExtractionEngine(dbPath, {
+      ...options,
+      beliefEmbedder: options.beliefEmbedder || null
+    });
     
     // FASTER RECOVERY: 5 minutes instead of 10
     this.recoveryInterval = options.recoveryInterval || 300000; // 5 minutes (was 600000)
     this._startRecovery();
     
     logger.info('AutonomousExtractionManager initialized');
+  }
+  
+  /**
+   * Set embedder (for late initialization)
+   */
+  setEmbedder(embedder) {
+    this.extractionEngine.setEmbedder(embedder);
   }
   
   /**
@@ -236,7 +246,7 @@ class AutonomousExtractionManager {
       const after = this.cognitiveState.getEnergy();
       
       if (before !== after) {
-        logger.debug(`Passive recovery: ${before} → ${after}`);
+        logger.debug(`Passive recovery: ${before} â†’ ${after}`);
       }
       
       // Process queue if energy sufficient (lowered threshold)

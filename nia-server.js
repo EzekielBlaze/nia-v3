@@ -14,9 +14,9 @@ const WebSocket = require('ws');
 let IPCClient = null;
 try {
   IPCClient = require('./ipc-client');
-  console.log('âœ“ IPCClient loaded');
+  console.log('Ã¢Å“â€œ IPCClient loaded');
 } catch (err) {
-  console.log('âœ— IPCClient not available:', err.message);
+  console.log('Ã¢Å“â€” IPCClient not available:', err.message);
 }
 
 const PORT = 3000;
@@ -116,8 +116,9 @@ async function handleAPI(req, res) {
       const client = new IPCClient();
       await client.connect();
       
-      // Send command
-      const response = await client.request(command, data);
+      // Use longer timeout for chat (LLM calls take time)
+      const timeout = command === 'chat' ? 180000 : 30000; // 3 min for chat, 30s for others
+      const response = await client.request(command, data, timeout);
       
       client.disconnect();
       
@@ -268,8 +269,8 @@ wss.on('connection', (ws) => {
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`âœ“ Server running at http://localhost:${PORT}`);
-  console.log(`âœ“ Open browser to http://localhost:${PORT}\n`);
+  console.log(`Ã¢Å“â€œ Server running at http://localhost:${PORT}`);
+  console.log(`Ã¢Å“â€œ Open browser to http://localhost:${PORT}\n`);
   
   // Try to open browser automatically
   const open = require('child_process').exec;

@@ -19,6 +19,24 @@ class BeliefValidator {
     this.temporaryStates = /^I (am|feel|need) (hungry|tired|thirsty|sick|busy|stressed) right now/i;
     this.sarcasticMarkers = /(yeah right|sure|totally|obviously|of course.*not)/i;
     
+    // JUNK PATTERNS - statements that should NEVER be beliefs
+    this.junkPatterns = [
+      /\bis mentioned\b/i,
+      /\bwas mentioned\b/i,
+      /\bcame up\b/i,
+      /\bwas discussed\b/i,
+      /\bwere discussed\b/i,
+      /\bwas talked about\b/i,
+      /\bin the conversation\b/i,
+    ];
+    
+    // UNRESOLVED PRONOUN PATTERNS - beliefs must use actual names
+    this.unresolvedPronounPatterns = [
+      /^she\s+(thinks?|believes?|values?|feels?|is|was|has|had)\b/i,
+      /^he\s+(thinks?|believes?|values?|feels?|is|was|has|had)\b/i,
+      /^they\s+(think|believe|value|feel|are|were|have|had)\b/i,
+    ];
+    
     // Subject validation
     this.firstPersonMarkers = /^I (am|have|believe|value|prefer|tend to|avoid|like|dislike)/i;
     
@@ -173,7 +191,7 @@ class BeliefValidator {
     
     // If we found a clear match, use it
     if (bestContext && bestScore > 0 && !isAmbiguous) {
-      logger.info(`Disambiguated "${subject}" â†’ "${bestContext}" (score: ${bestScore}, confidence: ${(confidence * 100).toFixed(0)}%, keywords: ${scores[bestContext].keywords.join(', ')})`);
+      logger.info(`Disambiguated "${subject}" Ã¢â€ â€™ "${bestContext}" (score: ${bestScore}, confidence: ${(confidence * 100).toFixed(0)}%, keywords: ${scores[bestContext].keywords.join(', ')})`);
       return bestContext;
     }
     
@@ -377,6 +395,22 @@ class BeliefValidator {
       return { valid: false, errors, warnings, score: 0 };
     }
     
+    // 3b. Reject junk patterns ("X is mentioned", "X came up")
+    for (const pattern of this.junkPatterns) {
+      if (pattern.test(statement)) {
+        errors.push(`Junk pattern detected: "${statement.substring(0, 40)}..."`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 3c. Reject unresolved pronouns ("She thinks X" - WHO is she?)
+    for (const pattern of this.unresolvedPronounPatterns) {
+      if (pattern.test(statement.trim())) {
+        errors.push(`Unresolved pronoun: "${statement.substring(0, 30)}..." - use actual name`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
     // 4. Reject imperatives/plans
     if (this.imperativePatterns.test(statement)) {
       errors.push('Statement is an imperative or plan');
@@ -512,7 +546,7 @@ class BeliefValidator {
     }
     
     // TODO: Phase 2 - Embedding refresh needed
-    // When PoincarÃ© embeddings are added, trigger re-embedding here
+    // When PoincarÃƒÂ© embeddings are added, trigger re-embedding here
     // after normalization changes the statement text
     
     return {

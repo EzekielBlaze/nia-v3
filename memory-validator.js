@@ -5,6 +5,8 @@
  * Primary defense against LLM making things up.
  * 
  * Key validation: source_quote must exist in user message.
+ * 
+ * v2: Added anti-junk patterns and perspective validation
  */
 
 const logger = require('./utils/logger');
@@ -38,6 +40,57 @@ class MemoryValidator {
       'permanent', 'ongoing', 'past', 'temporary',
       'long_term', 'short_term', 'past_event' // Legacy
     ];
+    
+    // JUNK PATTERNS - statements that should NEVER be memories
+    this.junkPatterns = [
+      // "X is mentioned" patterns
+      /\bis mentioned\b/i,
+      /\bwas mentioned\b/i,
+      /\bare mentioned\b/i,
+      /\bwere mentioned\b/i,
+      
+      // "X came up" / "X was discussed" patterns
+      /\bcame up\b/i,
+      /\bwas discussed\b/i,
+      /\bwere discussed\b/i,
+      /\bis discussed\b/i,
+      /\bwas brought up\b/i,
+      /\bwas talked about\b/i,
+      
+      // Meta-commentary about the conversation
+      /\bin the conversation\b/i,
+      /\bin this conversation\b/i,
+      /\bthe user (said|mentioned|talked|asked)\b/i,
+      /\bthe assistant (said|mentioned|responded)\b/i,
+      
+      // Too vague
+      /^(something|things?) (is|are|was|were)\b/i,
+      /^(it|this|that) (is|was)\b/i,
+    ];
+    
+    // PERSPECTIVE REVERSAL PATTERNS - Nia claiming to be human or have physical attributes
+    this.perspectiveErrors = [
+      // Nia claiming physical things
+      /\b(my|i have a?) (pc|computer|phone|car|house|apartment|room|desk)\b/i,
+      /\bi (went|drove|walked|traveled|visited|lived)\b/i,
+      /\bi (ate|drank|slept|woke)\b/i,
+      
+      // Subject reversal - user seeing/doing things to Nia's stuff
+      /\buser.*(see|watch|view|access).*what (i|nia|me)\b/i,
+      /\buser.*(my|nia's) (screen|pc|computer|files)\b/i,
+      /\bblaze.*(see|watch|view).*what (i|nia) (am|'m) doing\b/i,
+      
+      // Nia claiming user attributes
+      /\b(i am|i'm) (human|a person|real|physical)\b/i,
+    ];
+    
+    // UNRESOLVED PRONOUN PATTERNS - reject facts that start with just a pronoun
+    this.unresolvedPronounPatterns = [
+      /^she\s+(is|was|has|had|will|would|can|could|likes?|loves?|wants?|needs?|goes?|went)\b/i,
+      /^he\s+(is|was|has|had|will|would|can|could|likes?|loves?|wants?|needs?|goes?|went)\b/i,
+      /^they\s+(are|were|have|had|will|would|can|could|like|love|want|need|go|went)\b/i,
+      /^it\s+(is|was|has|had|will|would|can|could)\b/i,
+    ];
   }
   
   /**
@@ -60,7 +113,31 @@ class MemoryValidator {
       return { valid: false, errors, warnings, score: 0 };
     }
     
-    // 2. Source quote validation - CRITICAL
+    // 2. JUNK PATTERN CHECK - reject trivial extractions
+    for (const pattern of this.junkPatterns) {
+      if (pattern.test(fact.statement)) {
+        errors.push(`Junk pattern detected: "${fact.statement.substring(0, 40)}..."`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 3. PERSPECTIVE CHECK - reject reversed subject/object
+    for (const pattern of this.perspectiveErrors) {
+      if (pattern.test(fact.statement)) {
+        errors.push(`Perspective error: Nia claiming physical/reversed attributes`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 3b. UNRESOLVED PRONOUN CHECK - reject "She is X" without a name
+    for (const pattern of this.unresolvedPronounPatterns) {
+      if (pattern.test(fact.statement.trim())) {
+        errors.push(`Unresolved pronoun: "${fact.statement.substring(0, 30)}..." - WHO is this about?`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 4. Source quote validation - CRITICAL
     if (!fact.source_quote) {
       errors.push('Missing source_quote - cannot verify fact');
       return { valid: false, errors, warnings, score: 0 };
@@ -73,7 +150,7 @@ class MemoryValidator {
     }
     score += sourceValidation.matchRatio * 25; // Up to +25 for good source match
     
-    // 3. Statement-to-source coherence check
+    // 5. Statement-to-source coherence check
     const coherence = this._checkCoherence(fact.statement, fact.source_quote, userMessage);
     if (!coherence.valid) {
       errors.push(coherence.reason);
@@ -81,7 +158,7 @@ class MemoryValidator {
     }
     score += coherence.score * 15; // Up to +15 for coherence
     
-    // 4. Importance threshold
+    // 6. Importance threshold
     const importance = fact.importance || 0;
     if (importance < this.minImportance) {
       errors.push(`Importance too low (${importance}, need ${this.minImportance}+)`);
@@ -89,19 +166,19 @@ class MemoryValidator {
     }
     score += Math.min(importance, 10); // Up to +10 for importance
     
-    // 5. Question check - facts shouldn't be questions or derived from questions
+    // 7. Question check - facts shouldn't be questions or derived from questions
     if (fact.statement.includes('?')) {
       errors.push('Statement is a question, not a fact');
       return { valid: false, errors, warnings, score: 0 };
     }
     
-    // 5b. Source quote shouldn't be a question either
+    // 7b. Source quote shouldn't be a question either
     if (fact.source_quote && fact.source_quote.includes('?')) {
       errors.push('Fact derived from a question, not a statement');
       return { valid: false, errors, warnings, score: 0 };
     }
     
-    // 5c. Check for request/question patterns in source
+    // 7c. Check for request/question patterns in source
     if (fact.source_quote) {
       const requestPatterns = [
         /^(can|could|would|will|do|does) you/i,
@@ -116,17 +193,17 @@ class MemoryValidator {
       }
     }
     
-    // 6. Type validation (warning only)
+    // 8. Type validation (warning only)
     if (fact.fact_type && !this.validFactTypes.includes(fact.fact_type)) {
       warnings.push(`Unknown fact_type: ${fact.fact_type}`);
     }
     
-    // 7. Temporal validation (warning only)
+    // 9. Temporal validation (warning only)
     if (fact.temporal && !this.validTemporal.includes(fact.temporal)) {
       warnings.push(`Unknown temporal: ${fact.temporal}`);
     }
     
-    // 8. About field check
+    // 10. About field check
     if (!fact.about) {
       warnings.push('Missing "about" field - defaulting to user');
       fact.about = 'user';

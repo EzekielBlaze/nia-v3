@@ -68,6 +68,26 @@ class ConversationArchiver {
       );
       
       if (success) {
+        // Create payload index on timestamp for efficient ordering
+        try {
+          await fetch(
+            `${this.vectorClient.baseUrl}/collections/${this.collectionName}/index`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                field_name: 'timestamp',
+                field_schema: 'integer'
+              }),
+              signal: AbortSignal.timeout(5000)
+            }
+          );
+          logger.debug('ConversationArchiver: timestamp index ready');
+        } catch (indexErr) {
+          // Index might already exist, that's fine
+          logger.debug(`Timestamp index: ${indexErr.message}`);
+        }
+        
         this.initialized = true;
         logger.info('ConversationArchiver initialized');
       }
@@ -96,14 +116,29 @@ class ConversationArchiver {
       if (!ok) return { queued: false, reason: 'not_initialized' };
     }
     
-    // Skip trivial exchanges
-    if (this._isTrivial(userMessage, niaResponse)) {
-      return { queued: false, reason: 'trivial' };
-    }
+    // Archive ALL conversations - no trivial filtering
+    // The user wants to see their complete chat history
     
     // Queue for batch processing
+    // Ensure ID is a valid integer for Qdrant
+    let pointId = metadata.turnId;
+    if (typeof pointId === 'bigint') {
+      pointId = Number(pointId);
+    } else if (typeof pointId === 'string') {
+      // Try to parse as int, or generate a numeric hash
+      const parsed = parseInt(pointId, 10);
+      if (!isNaN(parsed)) {
+        pointId = parsed;
+      } else {
+        // Generate numeric ID from string hash
+        pointId = Math.abs(pointId.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0));
+      }
+    } else if (!pointId) {
+      pointId = Date.now();
+    }
+    
     this.batch.push({
-      id: metadata.turnId || `turn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: pointId,
       userMessage,
       niaResponse,
       thinking: metadata.thinking || null,
@@ -111,6 +146,8 @@ class ConversationArchiver {
       topics: metadata.topics || [],
       timestamp: Date.now()
     });
+    
+    logger.debug(`ConversationArchiver: Queued turn ${pointId} (original: ${metadata.turnId}, type: ${typeof metadata.turnId})`);
     
     // Flush if batch full
     if (this.batch.length >= this.batchSize) {
@@ -200,36 +237,86 @@ class ConversationArchiver {
         must: [{ key: 'session_id', match: { value: sessionId } }]
       } : null;
       
-      const response = await fetch(
-        `${this.vectorClient.baseUrl}/collections/${this.collectionName}/points/scroll`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            limit,
-            with_payload: true,
-            with_vector: false,
-            ...(filter && { filter })
-          }),
-          signal: AbortSignal.timeout(5000)
-        }
-      );
+      // Try with order_by first (Qdrant 1.7+), fall back to fetching more and sorting
+      let response;
+      let useOrderBy = true;
       
-      if (!response.ok) return [];
+      try {
+        response = await fetch(
+          `${this.vectorClient.baseUrl}/collections/${this.collectionName}/points/scroll`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              limit: limit * 2,
+              with_payload: true,
+              with_vector: false,
+              order_by: { key: 'timestamp', direction: 'desc' },
+              ...(filter && { filter })
+            }),
+            signal: AbortSignal.timeout(5000)
+          }
+        );
+        
+        // Check if order_by was rejected
+        if (!response.ok) {
+          const errText = await response.text();
+          if (errText.includes('order_by') || errText.includes('unknown field')) {
+            useOrderBy = false;
+            logger.debug('Qdrant order_by not supported, falling back to fetch-all');
+          }
+        }
+      } catch (e) {
+        useOrderBy = false;
+      }
+      
+      // Fallback: fetch more points and sort client-side
+      if (!useOrderBy || !response?.ok) {
+        response = await fetch(
+          `${this.vectorClient.baseUrl}/collections/${this.collectionName}/points/scroll`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              limit: 100,  // Fetch more to ensure we get recent ones
+              with_payload: true,
+              with_vector: false,
+              ...(filter && { filter })
+            }),
+            signal: AbortSignal.timeout(5000)
+          }
+        );
+      }
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        logger.warn(`getRecent scroll failed: ${response.status} - ${errText}`);
+        return [];
+      }
       
       const data = await response.json();
       
-      return data.result.points
-        .sort((a, b) => b.payload.timestamp - a.payload.timestamp)
-        .slice(0, limit)
-        .map(p => ({
-          turnId: p.id,
-          userMessage: p.payload.user_message,
-          niaResponse: p.payload.nia_response,
-          timestamp: p.payload.timestamp,
-          sessionId: p.payload.session_id,
-          topics: p.payload.topics
-        }));
+      if (!data.result?.points) {
+        logger.warn('getRecent: No points in response');
+        return [];
+      }
+      
+      logger.debug(`getRecent: Got ${data.result.points.length} points from Qdrant`);
+      
+      // Sort by timestamp descending and take first N
+      const sorted = data.result.points
+        .filter(p => p.payload?.timestamp)  // Ensure has timestamp
+        .sort((a, b) => (b.payload.timestamp || 0) - (a.payload.timestamp || 0))
+        .slice(0, limit);
+      
+      return sorted.map(p => ({
+        turnId: p.id,
+        userMessage: p.payload.user_message,
+        niaResponse: p.payload.nia_response,
+        timestamp: p.payload.timestamp,
+        sessionId: p.payload.session_id,
+        topics: p.payload.topics
+      }));
         
     } catch (err) {
       logger.error(`Get recent conversations failed: ${err.message}`);
@@ -241,7 +328,10 @@ class ConversationArchiver {
    * Flush batch to Qdrant
    */
   async _flush() {
-    if (this.batch.length === 0) return;
+    if (this.batch.length === 0) {
+      logger.debug('ConversationArchiver._flush: Empty batch, skipping');
+      return;
+    }
     if (!this.embedder) {
       logger.warn('ConversationArchiver: No embedder, clearing batch');
       this.batch = [];
@@ -251,6 +341,8 @@ class ConversationArchiver {
     const toFlush = [...this.batch];
     this.batch = [];
     
+    logger.info(`ConversationArchiver._flush: Processing ${toFlush.length} turns`);
+    
     try {
       // Generate embeddings for all
       const points = [];
@@ -259,7 +351,21 @@ class ConversationArchiver {
         try {
           // Combine user + NIA for embedding
           const text = `User: ${turn.userMessage}\nNIA: ${turn.niaResponse.substring(0, 500)}`;
+          logger.debug(`ConversationArchiver: Embedding turn ${turn.id}, text length: ${text.length}`);
+          
           const embedding = await this.embedder.getEmbedding(text);
+          
+          if (!embedding) {
+            logger.warn(`ConversationArchiver: No embedding returned for turn ${turn.id}`);
+            continue;
+          }
+          
+          if (!Array.isArray(embedding)) {
+            logger.warn(`ConversationArchiver: Invalid embedding type for turn ${turn.id}: ${typeof embedding}`);
+            continue;
+          }
+          
+          logger.debug(`ConversationArchiver: Got embedding for turn ${turn.id}, dims: ${embedding.length}`);
           
           points.push({
             id: turn.id,
@@ -278,7 +384,12 @@ class ConversationArchiver {
         }
       }
       
-      if (points.length === 0) return;
+      if (points.length === 0) {
+        logger.warn('ConversationArchiver._flush: No points to insert (all embeddings failed)');
+        return;
+      }
+      
+      logger.info(`ConversationArchiver._flush: Inserting ${points.length} points to Qdrant`);
       
       // Batch upsert to Qdrant
       const response = await fetch(
@@ -292,31 +403,49 @@ class ConversationArchiver {
       );
       
       if (response.ok) {
-        logger.debug(`Archived ${points.length} conversation turns`);
+        const result = await response.json();
+        logger.info(`ConversationArchiver: Archived ${points.length} turns successfully`);
+        logger.debug(`Qdrant response: ${JSON.stringify(result)}`);
       } else {
-        logger.warn(`Failed to archive turns: ${response.status}`);
+        const errorText = await response.text();
+        logger.error(`ConversationArchiver: Failed to archive turns: ${response.status} - ${errorText}`);
       }
       
     } catch (err) {
       logger.error(`Conversation archive flush failed: ${err.message}`);
+      logger.error(`Stack: ${err.stack}`);
     }
   }
   
   /**
    * Check if conversation is trivial
+   * Only skip if BOTH user message is trivial AND response is very short
    */
   _isTrivial(userMessage, niaResponse) {
-    const totalLength = (userMessage?.length || 0) + (niaResponse?.length || 0);
-    if (totalLength < 50) return true;
+    const userLen = userMessage?.length || 0;
+    const responseLen = niaResponse?.length || 0;
+    const totalLength = userLen + responseLen;
     
-    const trivialPatterns = [
-      /^(hey|hi|hello|yo)\b/i,
-      /^(ok|okay|sure|yes|no|yeah|nah)\b/i,
-      /^how are you/i,
-      /^what's up/i
-    ];
+    // Very short exchanges - always trivial
+    if (totalLength < 30) return true;
     
-    return trivialPatterns.some(p => p.test(userMessage?.trim() || ''));
+    // If Nia gave a substantial response (>100 chars), it's worth keeping
+    if (responseLen > 100) return false;
+    
+    // Only check patterns if both messages are short
+    if (userLen < 20 && responseLen < 80) {
+      const trivialPatterns = [
+        /^(hey|hi|hello|yo|sup)$/i,  // Only exact matches, not "hey nia!"
+        /^(ok|okay|sure|yes|no|yeah|nah|yep|nope)$/i,
+        /^(thanks|thx|ty)$/i
+      ];
+      
+      if (trivialPatterns.some(p => p.test(userMessage?.trim() || ''))) {
+        return true;
+      }
+    }
+    
+    return false;
   }
   
   /**

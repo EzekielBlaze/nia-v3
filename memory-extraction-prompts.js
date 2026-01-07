@@ -18,6 +18,7 @@ CRITICAL RULES:
 3. Include "user" as a default entity (the person speaking)
 4. Do NOT extract entities from the assistant's response
 5. Do NOT infer entities - only explicit mentions
+6. Do NOT extract colors, words, or trivial observations as entities
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -35,6 +36,12 @@ ENTITY TYPES:
 - thing: Objects, tools, technologies
 - concept: Abstract ideas, topics
 - organization: Companies, groups, institutions
+
+DO NOT EXTRACT AS ENTITIES:
+- Colors (green, blue, red, etc.)
+- Single words that were merely mentioned
+- Adjectives or descriptors
+- Pronouns without clear referents
 
 EXAMPLES:
 
@@ -66,6 +73,15 @@ Output:
   ]
 }
 
+User says: "I like the color green"
+Output:
+{
+  "entities": [
+    {"id": "user", "type": "self", "name": "the user"}
+  ]
+}
+(Note: "green" is NOT an entity - it's just a color preference about the user)
+
 NORMALIZE IDs:
 - Use lowercase snake_case: "sarah", "max", "google"
 - Keep simple and short
@@ -77,22 +93,52 @@ const PASS_B_FACT_EXTRACTION = `You are extracting FACTS about the entities iden
 
 You have a list of entities. For each entity, extract FACTS that the USER EXPLICITLY STATED.
 
-CRITICAL RULES:
+CRITICAL PERSPECTIVE RULES:
+1. YOU are Nia (the AI assistant)
+2. USER is Blaze (the human you're talking to)
+3. When user says "you can X" → that means NIA can X (about you/assistant)
+4. When user says "I did X" → that means USER/Blaze did X
+5. ALWAYS write facts from Nia's perspective:
+   - "Blaze likes pizza" (NOT "the user likes pizza")
+   - "I can see Blaze's screen" (NOT "user will see what I'm doing")
+   - "Blaze went to the store" (NOT "I went to the store")
+
+CRITICAL EXTRACTION RULES:
 1. Output ONLY valid JSON - no preamble, no markdown
 2. ONLY extract facts the USER directly stated
 3. Use "about" from the entity list - DO NOT invent new entities
 4. Every fact MUST have a source_quote from the user's message
 5. If you cannot quote the user directly, DO NOT extract the fact
 6. NEVER extract from assistant response or inferences
-7. NEVER extract questions as facts - "can you remember X?" is NOT a fact
-8. NEVER extract requests as facts - "could you help me?" is NOT about the user's abilities
+
+ABSOLUTELY DO NOT EXTRACT:
+- "[word] is mentioned" - this is NOT a fact, it's noting a word appeared
+- "[topic] came up" - too vague to be useful
+- "[color] is mentioned" - colors appearing in conversation are not facts
+- "[thing] was discussed" - this is meta-commentary, not a fact
+- Questions as facts: "can you remember X?" is NOT a fact about abilities
+- Requests as facts: "could you help me?" is NOT a fact
+- Observations about the conversation itself
+- Unresolved pronouns: "She is at work" - WHO is she? ALWAYS use the name!
+
+CRITICAL PRONOUN RULE:
+- NEVER write a fact with just "he", "she", "they" as the subject
+- ALWAYS resolve pronouns to the actual name mentioned
+- If user says "Gloomie is okay, she is at work" → extract "Gloomie is at work" NOT "She is at work"
+- If you cannot determine who a pronoun refers to, DO NOT EXTRACT that fact
+
+ONLY EXTRACT facts that are:
+- About a specific entity (person, place, thing)
+- Stated as truth by the user
+- Important enough to remember long-term
+- Clear about WHO did/said/is WHAT
 
 OUTPUT FORMAT (strict JSON):
 {
   "facts": [
     {
       "about": "entity_id",
-      "statement": "clear factual statement",
+      "statement": "clear factual statement from Nia's perspective",
       "source_quote": "exact words from user message",
       "fact_type": "attribute|preference|relationship|state|event|membership",
       "temporal": "permanent|ongoing|past|temporary",
@@ -103,14 +149,14 @@ OUTPUT FORMAT (strict JSON):
 
 FACT TYPES:
 - attribute: Properties/characteristics ("Sarah is tall", "Max is 3 years old")
-- preference: Likes/dislikes ("Sarah loves hiking", "I prefer Python")
-- relationship: How entities relate ("Sarah is my sister", "Max is my dog")
-- state: Current conditions ("I am learning Rust", "Sarah is busy")
-- event: Things that happened ("I went to Paris", "Sarah graduated")
-- membership: Belonging to groups ("I work at Google", "Sarah joined the team")
+- preference: Likes/dislikes ("Blaze loves hiking", "Blaze prefers Python")
+- relationship: How entities relate ("Sarah is Blaze's sister", "Max is Blaze's dog")
+- state: Current conditions ("Blaze is learning Rust", "Sarah is busy")
+- event: Things that happened ("Blaze went to Paris", "Sarah graduated")
+- membership: Belonging to groups ("Blaze works at Google", "Sarah joined the team")
 
 IMPORTANCE GUIDE:
-- 1-3: Trivial, forgettable
+- 1-3: Trivial, forgettable (DON'T EXTRACT THESE)
 - 4-6: Moderately interesting
 - 7-8: Important to remember
 - 9-10: Critical personal info
@@ -125,7 +171,7 @@ Output:
   "facts": [
     {
       "about": "sarah",
-      "statement": "Sarah is the user's friend",
+      "statement": "Sarah is Blaze's friend",
       "source_quote": "My friend Sarah",
       "fact_type": "relationship",
       "temporal": "ongoing",
@@ -142,16 +188,61 @@ Output:
   ]
 }
 
+Entities: ["user"]
+User says: "you'll be able to see what I'm doing on my PC"
+
+Output:
+{
+  "facts": [
+    {
+      "about": "user",
+      "statement": "I will be able to see what Blaze is doing on his PC",
+      "source_quote": "you'll be able to see what I'm doing on my PC",
+      "fact_type": "state",
+      "temporal": "temporary",
+      "importance": 7
+    }
+  ]
+}
+(Note: "you" = Nia, "I" = Blaze. Statement written from Nia's perspective.)
+
+Entities: ["user"]
+User says: "I like green and blue"
+
+Output:
+{
+  "facts": [
+    {
+      "about": "user",
+      "statement": "Blaze likes the colors green and blue",
+      "source_quote": "I like green and blue",
+      "fact_type": "preference",
+      "temporal": "ongoing",
+      "importance": 5
+    }
+  ]
+}
+(Note: This is a preference fact, NOT "green is mentioned")
+
+BAD EXTRACTIONS (DO NOT DO THIS):
+- {"statement": "Green is mentioned"} ← WRONG: Not a fact
+- {"statement": "Colors were discussed"} ← WRONG: Meta-commentary
+- {"statement": "The user mentioned hiking"} ← WRONG: "mentioned" is not a fact
+- {"statement": "User will see what I'm doing"} ← WRONG: Perspective reversed
+- {"statement": "You are digital"} ← WRONG: Vague, no clear subject
+- {"statement": "She is at work"} ← WRONG: WHO is she? Use the actual name!
+
+GOOD PRONOUN RESOLUTION:
+User says: "Gloomie is okay, she is at work too"
+WRONG: {"statement": "She is at work", "about": "she"} ← Useless, who is "she"?
+RIGHT: {"statement": "Gloomie is at work", "about": "gloomie"} ← Clear subject!
+
 CRITICAL: 
 - The source_quote MUST appear in the user's message
 - If you can't quote it, don't extract it
 - When in doubt, leave it out
-
-DO NOT EXTRACT (these are NOT facts):
-- Questions: "can you help me?" → NOT a fact about user
-- Requests: "would you remember this?" → NOT a statement about user's abilities
-- Pleasantries: "how are you?" → NOT a fact
-- Hypotheticals: "if I were to..." → NOT a fact
+- If importance would be 1-3, don't extract it
+- Write statements from Nia's perspective (I = Nia, Blaze = the user)
 
 Output ONLY the JSON object, nothing else.`;
 
@@ -168,7 +259,9 @@ USER MESSAGE:
 Remember:
 - ONLY entities the user explicitly mentioned
 - Always include "user" as self
-- Skip if just greetings/questions with no entities
+- Do NOT extract colors as entities
+- Do NOT extract words that were just "mentioned"
+- Skip if just greetings/questions with no real entities
 
 Output ONLY the JSON object.`;
 }
@@ -189,11 +282,20 @@ ${entityDetails}
 USER MESSAGE:
 "${userMessage}"
 
+PERSPECTIVE REMINDER:
+- You are Nia (the AI)
+- The user is Blaze (the human)
+- "you" in user's message = Nia
+- "I" in user's message = Blaze
+- Write facts from YOUR perspective (Nia's)
+
 RULES:
 - ONLY extract facts explicitly stated by the user
 - Every fact needs a source_quote from the user's message
 - Use entity IDs from the list above for "about" field
-- If no facts stated, return {"facts": []}
+- If no meaningful facts, return {"facts": []}
+- Do NOT extract "[X] is mentioned" or "[X] came up"
+- Do NOT extract trivial observations (importance 1-3)
 
 Output ONLY the JSON object.`;
 }

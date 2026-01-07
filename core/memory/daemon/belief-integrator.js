@@ -151,6 +151,108 @@ class BeliefIntegrator {
     if (!this.beliefMaturation) return false;
     return this.beliefMaturation.isInProbation(beliefId);
   }
+  
+  /**
+   * Embed all beliefs that don't have vector_id to Qdrant
+   */
+  async embedAllBeliefs() {
+    if (!this.embedderAvailable || !this.beliefEmbedder) {
+      return { error: 'Embedder not available', embedded: 0 };
+    }
+    
+    try {
+      const Database = require('better-sqlite3');
+      const db = new Database(this.daemon.identityDbPath);
+      
+      // Ensure vector_id column exists
+      try {
+        db.exec(`ALTER TABLE beliefs ADD COLUMN vector_id TEXT`);
+        logger.info('Added vector_id column to beliefs table');
+      } catch (err) {
+        // Column already exists - this is fine
+      }
+      
+      // Ensure poincare columns exist
+      try {
+        db.exec(`ALTER TABLE beliefs ADD COLUMN poincare_norm REAL`);
+        db.exec(`ALTER TABLE beliefs ADD COLUMN hierarchy_level INTEGER`);
+        db.exec(`ALTER TABLE beliefs ADD COLUMN embedding_model TEXT`);
+      } catch (err) {
+        // Columns already exist
+      }
+      
+      // Get all beliefs without poincare_norm (re-embed even if vector_id exists)
+      const beliefs = db.prepare(`
+        SELECT id, belief_statement, belief_type 
+        FROM beliefs 
+        WHERE poincare_norm IS NULL AND valid_to IS NULL
+      `).all();
+      
+      logger.info(`Embedding ${beliefs.length} beliefs to Qdrant...`);
+      
+      let embedded = 0;
+      let failed = 0;
+      
+      for (const belief of beliefs) {
+        try {
+          // embed() now returns full result with poincare_norm
+          const result = await this.beliefEmbedder.embed(
+            belief.id,
+            belief.belief_statement,
+            belief.belief_type || 'value'
+          );
+          
+          // Store in Qdrant
+          await this.beliefEmbedder.storeInQdrant(result.vectorId, result.embedding, {
+            belief_id: belief.id,
+            statement: belief.belief_statement.substring(0, 500),
+            type: belief.belief_type,
+            poincare_norm: result.poincare_norm,
+            hierarchy_level: result.hierarchy_level
+          });
+          
+          // Update SQLite with vector_id AND poincare metrics
+          db.prepare(`
+            UPDATE beliefs 
+            SET vector_id = ?, 
+                embedding_model = 'poincare-v1',
+                poincare_norm = ?, 
+                hierarchy_level = ?
+            WHERE id = ?
+          `).run(
+            result.vectorId, 
+            result.poincare_norm, 
+            result.hierarchy_level,
+            belief.id
+          );
+          
+          embedded++;
+          
+          if (embedded % 10 === 0) {
+            logger.info(`  Embedded ${embedded}/${beliefs.length}...`);
+          }
+        } catch (err) {
+          logger.warn(`Failed to embed belief ${belief.id}: ${err.message}`);
+          failed++;
+        }
+      }
+      
+      db.close();
+      
+      logger.info(`Embedding complete: ${embedded} embedded, ${failed} failed`);
+      
+      return { 
+        embedded, 
+        failed, 
+        total: beliefs.length,
+        success: true
+      };
+      
+    } catch (err) {
+      logger.error(`embedAllBeliefs failed: ${err.message}`);
+      return { error: err.message, embedded: 0 };
+    }
+  }
 }
 
 module.exports = BeliefIntegrator;

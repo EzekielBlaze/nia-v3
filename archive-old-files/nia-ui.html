@@ -1003,7 +1003,7 @@ async function loadConversationHistory() {
 // Poll for new messages (for multi-device sync)
 async function pollForNewMessages() {
   try {
-    const data = await api('recent_conversations', { limit: 5 }, true, 5000); // 5 sec timeout for polling
+    const data = await api('recent_conversations', { limit: 5 }, true);
     
     if (data.success && data.results && data.results.length > 0) {
       let newMessages = 0;
@@ -1208,7 +1208,7 @@ async function testArchive() {
 }
 
 // =============== API WITH TRACING ===============
-async function api(cmd, data = {}, silent = false, timeoutMs = 15000) {
+async function api(cmd, data = {}, silent = false, timeoutMs = 60000) {
   const trace = { cmd, request: data, timestamp: new Date().toISOString() };
   if (!silent) log('INFO', `→ ${cmd}`, trace);
   
@@ -1302,9 +1302,6 @@ async function sendEveryday() {
   const input = $('everyday-input'), text = input.value.trim();
   if (!text) return;
   
-  // Pause background polling while chatting
-  stopMessagePolling();
-  
   // Add to shared history and display
   addChatMessage(text, 'user');
   input.value = '';
@@ -1354,9 +1351,6 @@ async function sendEveryday() {
   const data = await api('chat', { message: text }, false, 120000); // 2 min timeout for LLM
   clearInterval(timerInterval);
   thinking.remove();
-  
-  // Resume background polling
-  startMessagePolling(5000);
   
   if (data.error) {
     addChatMessage(`Error: ${data.error}`, 'system');
@@ -1476,9 +1470,6 @@ async function sendDebug() {
   const input = $('debug-chat-input'), text = input.value.trim();
   if (!text) return;
   
-  // Pause background polling while chatting
-  stopMessagePolling();
-  
   // Add to shared history and display
   addChatMessage(text, 'user');
   input.value = '';
@@ -1506,9 +1497,6 @@ async function sendDebug() {
   const data = await api('chat', { message: text }, false, 120000); // 2 min timeout for LLM
   clearInterval(timerInterval);
   thinking.remove();
-  
-  // Resume background polling
-  startMessagePolling(5000);
   
   if (data.error) {
     addChatMessage(`Error: ${data.error}`, 'error');
@@ -1685,7 +1673,7 @@ async function loadCognitiveState() {
 // =============== SERVICES ===============
 async function checkAllServices() {
   log('TRACE', 'Checking all services...');
-  const data = await api('debug_full', {}, true, 5000); // 5 sec timeout for status checks
+  const data = await api('debug_full', {}, true);
   
   const update = (id, ok) => {
     const el = $(id);

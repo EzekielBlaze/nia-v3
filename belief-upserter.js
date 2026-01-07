@@ -7,19 +7,69 @@
  * - Conviction score updates
  * - Conflict detection and resolution
  * - Temporal validity
+ * - Qdrant embedding (if embedder available)
  */
 
 const logger = require('./utils/logger');
 
 class BeliefUpserter {
-  constructor(db) {
+  constructor(db, embedder = null) {
     this.db = db;
+    this.embedder = embedder; // BeliefEmbedder for Qdrant (optional)
+    
+    // Ensure schema has vector_id column
+    this._ensureSchema();
+  }
+  
+  /**
+   * Ensure required columns exist
+   */
+  _ensureSchema() {
+    // Add vector_id column if missing
+    try {
+      this.db.exec(`ALTER TABLE beliefs ADD COLUMN vector_id TEXT`);
+      logger.info('BeliefUpserter: Added vector_id column');
+    } catch (err) {
+      // Column already exists - this is fine
+      if (!err.message.includes('duplicate column')) {
+        logger.debug(`vector_id column check: ${err.message}`);
+      }
+    }
+    
+    // Add embedding_model column if missing
+    try {
+      this.db.exec(`ALTER TABLE beliefs ADD COLUMN embedding_model TEXT`);
+    } catch (err) {
+      // Already exists
+    }
+    
+    // Add poincare_norm column if missing
+    try {
+      this.db.exec(`ALTER TABLE beliefs ADD COLUMN poincare_norm REAL`);
+    } catch (err) {
+      // Already exists
+    }
+    
+    // Add hierarchy_level column if missing
+    try {
+      this.db.exec(`ALTER TABLE beliefs ADD COLUMN hierarchy_level INTEGER`);
+    } catch (err) {
+      // Already exists
+    }
+  }
+  
+  /**
+   * Set embedder (for late initialization)
+   */
+  setEmbedder(embedder) {
+    this.embedder = embedder;
+    logger.info('BeliefUpserter: Embedder attached');
   }
   
   /**
    * Upsert a validated candidate into beliefs table
    */
-  upsertBelief(candidate, thinkingLogId) {
+  async upsertBelief(candidate, thinkingLogId) {
     // 1. Check for similar existing belief
     const similar = this.findSimilarBelief(candidate.statement);
     
@@ -31,10 +81,10 @@ class BeliefUpserter {
       const conflicts = this.detectConflicts(candidate);
       
       if (conflicts.length > 0) {
-        return this.handleConflict(candidate, conflicts, thinkingLogId);
+        return await this.handleConflict(candidate, conflicts, thinkingLogId);
       } else {
         // Insert new belief
-        return this.insertNewBelief(candidate, thinkingLogId);
+        return await this.insertNewBelief(candidate, thinkingLogId);
       }
     }
   }
@@ -123,7 +173,7 @@ class BeliefUpserter {
     
     // Log merge reasoning
     const matchPercent = existing.similarity ? (existing.similarity * 100).toFixed(0) : 'N/A';
-    logger.info(`Merged beliefs (${matchPercent}% similarity): "${existing.belief_statement}" (${existing.conviction_score.toFixed(0)}% → ${newConviction.toFixed(0)}%)`);
+    logger.info(`Merged beliefs (${matchPercent}% similarity): "${existing.belief_statement}" (${existing.conviction_score.toFixed(0)}% â†’ ${newConviction.toFixed(0)}%)`);
     
     return {
       action: 'updated',
@@ -137,7 +187,7 @@ class BeliefUpserter {
   /**
    * Insert new belief
    */
-  insertNewBelief(candidate, thinkingLogId) {
+  async insertNewBelief(candidate, thinkingLogId) {
     const now = Date.now();
     
     // Map candidate type to belief_type
@@ -171,6 +221,44 @@ class BeliefUpserter {
     // Record causality
     this.recordCausality(beliefId, thinkingLogId, 'formation');
     
+    // Embed to Qdrant if embedder available
+    if (this.embedder) {
+      try {
+        // BeliefEmbedder.embed() now returns full data including poincare_norm
+        const embedResult = await this.embedder.embed(beliefId, candidate.statement, beliefType);
+        
+        // Store to Qdrant
+        await this.embedder.storeInQdrant(embedResult.vectorId, embedResult.embedding, {
+          belief_id: beliefId,
+          statement: candidate.statement.substring(0, 500),
+          type: beliefType,
+          conviction: candidate.validation_score,
+          poincare_norm: embedResult.poincare_norm,
+          hierarchy_level: embedResult.hierarchy_level
+        });
+        
+        // Store vector_id AND poincare metrics in SQLite
+        this.db.prepare(`
+          UPDATE beliefs 
+          SET vector_id = ?, 
+              embedding_model = 'poincare-v1',
+              poincare_norm = ?, 
+              hierarchy_level = ?
+          WHERE id = ?
+        `).run(
+          embedResult.vectorId, 
+          embedResult.poincare_norm, 
+          embedResult.hierarchy_level,
+          beliefId
+        );
+        
+        logger.debug(`Belief ${beliefId} embedded: norm=${embedResult.poincare_norm?.toFixed(3)}, level=${embedResult.hierarchy_level}`);
+      } catch (embedErr) {
+        logger.warn(`Failed to embed belief ${beliefId}: ${embedErr.message}`);
+        // Continue - belief is still in SQLite, just not searchable via vectors
+      }
+    }
+    
     // Create descriptive subject label
     let subjectLabel;
     if (candidate.subject === 'user') {
@@ -198,7 +286,8 @@ class BeliefUpserter {
     const typeMap = {
       'belief': 'value',
       'ephemeral_fact': 'fact',
-      'scar': 'principle' // scars become high-conviction principles
+      'scar': 'principle',          // scars become high-conviction principles
+      'experience': 'experience'    // learned from action→consequence
     };
     return typeMap[candidateType] || 'value';
   }
@@ -256,7 +345,7 @@ class BeliefUpserter {
   /**
    * Handle belief conflict
    */
-  handleConflict(candidate, conflicts, thinkingLogId) {
+  async handleConflict(candidate, conflicts, thinkingLogId) {
     const now = Date.now();
     
     logger.warn(`Conflict detected: "${candidate.statement}" vs ${conflicts.length} existing beliefs`);
@@ -286,7 +375,7 @@ class BeliefUpserter {
     }
     
     // Insert new belief
-    return this.insertNewBelief(candidate, thinkingLogId);
+    return await this.insertNewBelief(candidate, thinkingLogId);
   }
   
   /**
@@ -315,7 +404,7 @@ class BeliefUpserter {
   /**
    * Batch upsert multiple candidates
    */
-  batchUpsert(validatedCandidates, thinkingLogId) {
+  async batchUpsert(validatedCandidates, thinkingLogId) {
     const results = {
       created: [],
       updated: [],
@@ -323,7 +412,7 @@ class BeliefUpserter {
     };
     
     for (const candidate of validatedCandidates) {
-      const result = this.upsertBelief(candidate, thinkingLogId);
+      const result = await this.upsertBelief(candidate, thinkingLogId);
       
       if (result.action === 'created') {
         results.created.push(result);

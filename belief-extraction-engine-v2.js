@@ -24,7 +24,7 @@ class TwoPassExtractionEngine {
   constructor(dbPath, options = {}) {
     this.db = new Database(dbPath);
     this.validator = new BeliefValidator();
-    this.upserter = new BeliefUpserter(this.db);
+    this.upserter = new BeliefUpserter(this.db, options.beliefEmbedder || null);
     this.dryRun = options.dryRun || false;
     
     this.llmEndpoint = options.llmEndpoint || 'http://localhost:1234/v1/chat/completions';
@@ -33,9 +33,20 @@ class TwoPassExtractionEngine {
     this._ensureSchema();
     
     logger.info('TwoPassExtractionEngine initialized');
-    if (this.dryRun) {
-      logger.info('🏃 DRY-RUN MODE: No database writes will occur');
+    if (options.beliefEmbedder) {
+      logger.info('  - Belief embedder: attached');
     }
+    if (this.dryRun) {
+      logger.info('ðŸƒ DRY-RUN MODE: No database writes will occur');
+    }
+  }
+  
+  /**
+   * Set embedder (for late initialization after beliefIntegrator.init())
+   */
+  setEmbedder(embedder) {
+    this.upserter.setEmbedder(embedder);
+    logger.info('TwoPassExtractionEngine: Embedder attached');
   }
   
   /**
@@ -273,11 +284,11 @@ class TwoPassExtractionEngine {
     }
     
     // Upsert beliefs (if not dry-run)
-    let upsertResult = { created: 0, updated: 0, conflicts: 0 };
+    let upsertResult = { created: [], updated: [], conflicted: [] };
     
     if (!this.dryRun && validCandidates.length > 0) {
-      upsertResult = this.upserter.batchUpsert(validCandidates, entry.id);
-      logger.info(`Batch upsert: ${upsertResult.created} created, ${upsertResult.updated} updated, ${upsertResult.conflicts} conflicts`);
+      upsertResult = await this.upserter.batchUpsert(validCandidates, entry.id);
+      logger.info(`Batch upsert: ${upsertResult.created.length} created, ${upsertResult.updated.length} updated, ${upsertResult.conflicted.length} conflicts`);
     } else if (this.dryRun) {
       logger.info(`[DRY-RUN] Would upsert ${validCandidates.length} beliefs`);
       validCandidates.forEach(c => {
@@ -311,9 +322,9 @@ class TwoPassExtractionEngine {
         candidates.length,
         validCandidates.length,
         rejectedCandidates.length,
-        upsertResult.created,
-        upsertResult.updated,
-        upsertResult.conflicts,
+        upsertResult.created.length,
+        upsertResult.updated.length,
+        upsertResult.conflicted.length,
         processingTime
       );
       
@@ -327,15 +338,15 @@ class TwoPassExtractionEngine {
       `).run(Date.now(), validCandidates.length, entry.id);
     }
     
-    logger.info(`Processed entry ${entry.id}: ${upsertResult.created} created, ${upsertResult.updated} updated, ${rejectedCandidates.length} rejected`);
+    logger.info(`Processed entry ${entry.id}: ${upsertResult.created.length} created, ${upsertResult.updated.length} updated, ${rejectedCandidates.length} rejected`);
     
     return {
       subjects: passA.subjects,
       candidates: validCandidates,
       rejected: rejectedCandidates,
-      created: upsertResult.created,
-      updated: upsertResult.updated,
-      conflicts: upsertResult.conflicts,
+      created: upsertResult.created.length,
+      updated: upsertResult.updated.length,
+      conflicts: upsertResult.conflicted.length,
       processingTime
     };
   }

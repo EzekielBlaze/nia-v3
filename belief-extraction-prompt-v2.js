@@ -70,6 +70,13 @@ const PASS_B_BELIEF_EXTRACTION = `You are extracting BELIEFS about the subjects 
 
 You have a list of subjects. For EACH subject, extract beliefs that are ABOUT that subject.
 
+CRITICAL PERSPECTIVE RULES:
+1. YOU are Nia (the AI assistant) - referred to as "self"
+2. USER is Blaze (the human) - referred to as "user"
+3. When user says "you can X" → that's about Nia (self)
+4. When user says "I think X" → that's the user's belief
+5. ALWAYS use proper names or IDs, NEVER unresolved pronouns
+
 CRITICAL RULES:
 1. Output ONLY valid JSON - no preamble, no markdown
 2. Use "about_id" from the subject list - DO NOT invent new subjects
@@ -85,12 +92,19 @@ DO NOT EXTRACT AS BELIEFS:
 - Simple facts about other people stated by the user ("Gloomie likes whales" - this is a MEMORY, not a belief)
 - Attribute statements about third parties ("My friend is tall")
 - Preferences of other people unless user is expressing their OWN belief about it
+- "[X] is mentioned" or "[X] came up" - these are NOT beliefs
+- Statements with unresolved pronouns ("She thinks X" - WHO is she?)
 
 ONLY EXTRACT AS BELIEFS:
 - User's own values, preferences, thoughts ("I think...", "I believe...", "I value...")
 - NIA's (self) reflections and realizations from thinking
 - Evaluative judgments ("X is good/bad/important")
 - Causal beliefs ("X causes Y")
+
+PRONOUN RULE:
+- NEVER use "he", "she", "they" without resolving to a name
+- If user says "Gloomie thinks X, she believes Y" → use "Gloomie" not "she"
+- If you can't resolve a pronoun, DO NOT extract that belief
 
 OUTPUT FORMAT (strict JSON):
 {

@@ -2,111 +2,262 @@ Folder PATH listing for volume Nia
 Volume serial number is 6E7A-82F3
 N:.
 |   .gitignore
-|   .js
-|   add-updated-at.js
+|   add-conversation-turns.sql
+|   add-turns-table.bat
+|   analyze-cleanup-safe.js
 |   analyze-cleanup.js
+|   api-commit-memory.js
 |   autonomous-extraction-manager.js
 |   belief-extraction-engine-v2.js
 |   belief-extraction-prompt-v2.js
 |   belief-processor.js
+|   belief-space-3d.html
 |   belief-upserter.js
 |   belief-validator.js
-|   check-current-db.js
+|   belief-visualizer-3d.py
+|   check-all-files.bat
 |   check-db.bat
+|   check-electron.bat
+|   check-installation.bat
+|   check-memory.bat
 |   check-schema.js
-|   cleanup-database.js
+|   check-turns-table.bat
 |   cleanup-old-files.bat
-|   cleanup-plan.json
+|   cleanup-safe.bat
 |   cleanup-services.bat
 |   cognitive-state.js
-|   complete-cascade-delete.js
-|   complete-fix.bat
-|   concept-connotation-schema.sql
 |   connotation-manager.js
+|   conversation-archiver.js
+|   daemon-DEBUG.js
+|   daemon-ERROR-LOG.js
 |   daemon.js
-|   delete-shortcuts.bat
+|   daemon.js.backup-before-qdrant
+|   debug-ipc.html
+|   delete-test-memories.js
+|   diagnose-beliefs.js
+|   diagnose-memory-flow.js
+|   diagnose-memory-full.js
+|   diagnose-memory-location.bat
 |   diagnose-nia.bat
+|   diagnose-nia.js
+|   diagnose-system.js
+|   dry-run-cleanup.js
+|   execute-cleanup-safe.js
 |   execute-cleanup.js
 |   extract-beliefs-v2.js
 |   extraction-gatekeeper.js
-|   fix-all-columns.js
-|   fix-all-identity-columns.js
-|   fix-correct-tables.js
-|   fix-missing-columns.js
-|   identity-query.js
+|   filetree.txt
+|   find-all-session-managers.js
+|   find-database.js
+|   fix-all-db-issues.js
+|   fix-beliefs.sql
+|   fix-daemon-qdrant.js
+|   fix-database.js
+|   fix-embeddings.js
+|   fix-foreign-keys.js
+|   fix-fts-v2.js
+|   fix-fts.js
+|   fix-integrator-paths.js
+|   fix-memory-fk.js
+|   fix-memory-location.bat
+|   force-embed-memories.js
+|   init-memory-db.js
+|   install-memory-system.bat
 |   install-service.js
+|   install-shortcuts.js
 |   ipc-client.js
+|   ipc-debug.js
+|   ipc-diagnostic.js
 |   ipc-server.js
-|   kill-all-nia.bat
-|   kill-nia-web.bat
-|   migrate-database.bat
-|   modify-service-permissions.js
+|   ipc-test.js
+|   KILL-ALL-NIA.bat
+|   LAUNCH-NIA.bat
+|   launch-nia.js
+|   memory-extraction-engine.js
+|   memory-extraction-integrator.js
+|   memory-extraction-prompts.js
+|   memory-relevance-scorer.js
+|   memory-test.html
+|   memory-upserter.js
+|   memory-validator.js
+|   nia-debug.html
 |   nia-icon.ico
+|   nia-server-debug.js
+|   nia-server-simple.js
 |   nia-server.js
+|   nia-tray.js
 |   nia-ui.html
+|   nia-widget.html
+|   NIA.bat
+|   nia.db
+|   Nia.json
 |   Nia.png
+|   output.txt
 |   package-lock.json
 |   package.json
-|   patch-extended-thinking.js
-|   query
+|   README-3D-VISUALIZER.md
 |   README.md
-|   safe-migrate.bat
-|   safe-migrate.js
+|   reset-energy.js
+|   RESTART-NIA-FRESH.bat
+|   restore-files.js
+|   run-migration.bat
+|   run-ultra-safe-cleanup.bat
 |   scar-processor.js
 |   service-manager.js
 |   service-status.js
 |   service-wrapper.js
 |   setup-database.js
-|   setup-nia.bat
-|   simple-delete-beliefs.js
-|   start-all.bat
-|   start-nia-web.bat
-|   stop
-|   test-identity.db
-|   test-schema.py
+|   show-schema.js
+|   start-daemon.js
+|   start-debug.bat
+|   start-service-admin.bat
+|   start-tray.js
+|   start-web-only.bat
+|   start-widget-direct.bat
+|   start-widget.js
+|   STOP-NIA.bat
+|   temporal-recall-helper.js
+|   test-cleanup-dryrun.bat
+|   test-memory-pipeline.js
+|   test-memory-simple.js
+|   test-memory-system.js
+|   test-memory.bat
+|   test-module-loading.js
+|   test-web-server.bat
 |   tree.txt
+|   treefile.txt
+|   troubleshoot-electron.bat
+|   ultra-safe-cleanup.js
 |   uninstall-service.js
+|   uninstall-shortcuts.js
+|   update-shortcuts.js
+|   widget-chat.html
+|   widget-main.js
+|   widget.html
 |   
-+----Force
 +----p
++---api
+|       api-beliefs.js
+|       api-chat.js
+|       api-commit-memory.js
+|       api-corrections.js
+|       api-recall-memories.js
+|       api-status.js
+|       index.js
+|       
 +---archive-old-files
+|       add-updated-at.js
 |       check-autostart.js
-|       check-electron.bat
+|       check-current-db.js
+|       cleanup-database.js
+|       cleanup-plan.json
+|       complete-cascade-delete.js
+|       complete-fix.bat
+|       concept-connotation-schema.sql
 |       daemon-old.js
 |       debug-extraction.js
-|       debug-ipc.html
 |       debug-two-pass.js
+|       delete-shortcuts.bat
 |       diagnose-ipc.js
-|       install-shortcuts.js
-|       ipc-debug.js
-|       ipc-diagnostic.js
+|       fix-all-columns.js
+|       fix-all-identity-columns.js
+|       fix-correct-tables.js
+|       fix-missing-columns.js
 |       ipc-server-old.js
-|       ipc-test.js
-|       launch-nia.js
+|       kill-all-nia.bat
+|       kill-nia-web.bat
 |       migrate-beliefs-table.js
 |       migrate-cognitive-tables.js
-|       nia-tray.js
-|       nia-widget.html
-|       NIA.bat
-|       restore-files.js
-|       run-migration.bat
-|       start-daemon.js
-|       start-tray.js
-|       start-widget-direct.bat
-|       start-widget.js
-|       troubleshoot-electron.bat
-|       uninstall-shortcuts.js
-|       update-shortcuts.js
-|       widget-chat.html
-|       widget-main.js
-|       widget.html
+|       migrate-database.bat
+|       modify-service-permissions.js
+|       patch-extended-thinking.js
+|       query
+|       safe-migrate.bat
+|       safe-migrate.js
+|       setup-nia.bat
+|       simple-delete-beliefs.js
+|       start-all.bat
+|       start-nia-web.bat
+|       stop
+|       test-identity.db
+|       test-ipc.js
+|       test-schema.py
 |       
 +---core
+|   +---embedders
+|   |       belief-embedder-service.py
+|   |       memory-embedder-service.py
+|   |       
 |   +---identity
 |   |       identity-schema-v3.sql
 |   |       
+|   +---memory
+|   |   +---correction
+|   |   |       clarification-asker.js
+|   |   |       correction-detector.js
+|   |   |       correction-exemptions.js
+|   |   |       correction-handler.js
+|   |   |       index.js
+|   |   |       uncertainty-detector.js
+|   |   |       
+|   |   +---daemon
+|   |   |       belief-integrator.js
+|   |   |       chat-handler.js
+|   |   |       correction-integrator.js
+|   |   |       index.js
+|   |   |       memory-integrator.js
+|   |   |       session-manager.js
+|   |   |       
+|   |   +---docs
+|   |   +---formation
+|   |   |       belief-detector.js
+|   |   |       belief-embedder.js
+|   |   |       belief-former.js
+|   |   |       belief-maturation.js
+|   |   |       belief-relationship.js
+|   |   |       index.js
+|   |   |       
+|   |   +---parsers
+|   |   |       commit-parser.js
+|   |   |       correction-parser.js
+|   |   |       index.js
+|   |   |       subject-extractor.js
+|   |   |       topic-extractor.js
+|   |   |       
+|   |   +---recall
+|   |   |       index.js
+|   |   |       memory-access-tracker.js
+|   |   |       memory-decay.js
+|   |   |       memory-embedder.js
+|   |   |       memory-recall-fast.js
+|   |   |       memory-recall-hybrid.js
+|   |   |       memory-recall-semantic.js
+|   |   |       memory-store.js
+|   |   |       
+|   |   +---schemas
+|   |   |       belief-maturation.sql
+|   |   |       beliefs.sql
+|   |   |       bridge-memory-belief.sql
+|   |   |       conversations.sql
+|   |   |       corrections.sql
+|   |   |       indexes.sql
+|   |   |       memories.sql
+|   |   |       
+|   |   +---temporal
+|   |   |       index.js
+|   |   |       session-tracker.js
+|   |   |       time-formatter.js
+|   |   |       uptime-monitor.js
+|   |   |       
+|   |   \---vector
+|   |           index.js
+|   |           vector-client.js
+|   |           vector-store-beliefs.js
+|   |           vector-store-memories.js
+|   |           
 |   \---query
 |           cli.js
+|           identity-query.js
 |           index.js
 |           test-query.js
 |           
@@ -120,7 +271,9 @@ N:.
 |       
 +---data
 |   |   add-concern-beliefs.sql
+|   |   check-turns-table.bat
 |   |   curated-beliefs-with-agency.sql
+|   |   nia-backup-1767483132552.db
 |   |   nia.db
 |   |   nia.db-shm
 |   |   nia.db-wal
@@ -135,6 +288,7 @@ N:.
 |   |       daemon-before smart filtering 1-3-2026.js
 |   |       daemon-old-before-emergence-prompt.js
 |   |       nia-db-backup-1-3-2026.db
+|   |       nia-ui.html
 |   |       
 |   +---logs
 |   |       daemon.log
@@ -143,11 +297,17 @@ N:.
 |   +---memories
 |   +---sessions
 |   \---thoughts
++---docs
++---embedders
+|       requirements.txt
+|       
 +---logs
 |       nia-2025-12-31.log
 |       nia-2026-01-01.log
 |       nia-2026-01-02.log
 |       nia-2026-01-03.log
+|       nia-2026-01-04.log
+|       nia-2026-01-05.log
 |       
 +---node_modules
 |   |   .package-lock.json
@@ -177,6 +337,9 @@ N:.
 |   |       semver
 |   |       semver.cmd
 |   |       semver.ps1
+|   |       uuid
+|   |       uuid.cmd
+|   |       uuid.ps1
 |   |       
 |   +---@electron
 |   |   \---get
@@ -3537,6 +3700,87 @@ N:.
 |   |       package.json
 |   |       README.md
 |   |       
+|   +---uuid
+|   |   |   LICENSE.md
+|   |   |   package.json
+|   |   |   README.md
+|   |   |   
+|   |   +---dist
+|   |   |       index.d.ts
+|   |   |       index.js
+|   |   |       max.d.ts
+|   |   |       max.js
+|   |   |       md5.d.ts
+|   |   |       md5.js
+|   |   |       native.d.ts
+|   |   |       native.js
+|   |   |       nil.d.ts
+|   |   |       nil.js
+|   |   |       parse.d.ts
+|   |   |       parse.js
+|   |   |       regex.d.ts
+|   |   |       regex.js
+|   |   |       rng.d.ts
+|   |   |       rng.js
+|   |   |       sha1.d.ts
+|   |   |       sha1.js
+|   |   |       stringify.d.ts
+|   |   |       stringify.js
+|   |   |       types.d.ts
+|   |   |       types.js
+|   |   |       uuid-bin.d.ts
+|   |   |       uuid-bin.js
+|   |   |       v1.d.ts
+|   |   |       v1.js
+|   |   |       v1ToV6.d.ts
+|   |   |       v1ToV6.js
+|   |   |       v3.d.ts
+|   |   |       v3.js
+|   |   |       v35.d.ts
+|   |   |       v35.js
+|   |   |       v4.d.ts
+|   |   |       v4.js
+|   |   |       v5.d.ts
+|   |   |       v5.js
+|   |   |       v6.d.ts
+|   |   |       v6.js
+|   |   |       v6ToV1.d.ts
+|   |   |       v6ToV1.js
+|   |   |       v7.d.ts
+|   |   |       v7.js
+|   |   |       validate.d.ts
+|   |   |       validate.js
+|   |   |       version.d.ts
+|   |   |       version.js
+|   |   |       
+|   |   \---dist-node
+|   |       |   index.js
+|   |       |   max.js
+|   |       |   md5.js
+|   |       |   native.js
+|   |       |   nil.js
+|   |       |   parse.js
+|   |       |   regex.js
+|   |       |   rng.js
+|   |       |   sha1.js
+|   |       |   stringify.js
+|   |       |   types.js
+|   |       |   uuid-bin.js
+|   |       |   v1.js
+|   |       |   v1ToV6.js
+|   |       |   v3.js
+|   |       |   v35.js
+|   |       |   v4.js
+|   |       |   v5.js
+|   |       |   v6.js
+|   |       |   v6ToV1.js
+|   |       |   v7.js
+|   |       |   validate.js
+|   |       |   version.js
+|   |       |   
+|   |       \---bin
+|   |               uuid
+|   |               
 |   +---vary
 |   |       HISTORY.md
 |   |       index.js
@@ -3740,6 +3984,13 @@ N:.
 |           package.json
 |           README.md
 |           
++---ui
+|       beliefs-panel.js
+|       corrections-panel.js
+|       memory-panel.js
+|       status-panel.js
+|       styles.css
+|       
 \---utils
         config.js
         logger.js

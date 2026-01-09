@@ -19,6 +19,21 @@ class BeliefValidator {
     this.temporaryStates = /^I (am|feel|need) (hungry|tired|thirsty|sick|busy|stressed) right now/i;
     this.sarcasticMarkers = /(yeah right|sure|totally|obviously|of course.*not)/i;
     
+    // EPHEMERAL CURRENT ACTIONS - not beliefs, just momentary states
+    this.ephemeralActionPatterns = [
+      /^I am (currently |right now )?(eating|drinking|at|doing|watching|reading|playing|working on)/i,
+      /^I('m| am) (at|in) (a |the )?(restaurant|store|office|home|work|school|gym)/i,
+      /\b(right now|currently|at the moment|presently)\b.*\b(eating|drinking|at|doing)\b/i,
+    ];
+    
+    // NIA PHYSICAL IMPOSSIBILITY - Nia is an AI and cannot do physical things
+    this.niaPhysicalPatterns = [
+      /^I (am |'m )?(eating|drinking|tasting|smelling|touching)/i,
+      /^I (am |'m )?(at|in|going to|walking|running|sitting|standing|lying)/i,
+      /^I (am |'m )?(sleeping|waking|tired|hungry|thirsty|cold|hot|sick)/i,
+      /^I (have|had|ate|drank|tasted|smelled|touched)/i,
+    ];
+    
     // JUNK PATTERNS - statements that should NEVER be beliefs
     this.junkPatterns = [
       /\bis mentioned\b/i,
@@ -408,6 +423,24 @@ class BeliefValidator {
       if (pattern.test(statement.trim())) {
         errors.push(`Unresolved pronoun: "${statement.substring(0, 30)}..." - use actual name`);
         return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 3d. Reject ephemeral current actions ("I am eating X right now")
+    for (const pattern of this.ephemeralActionPatterns) {
+      if (pattern.test(statement)) {
+        errors.push(`Ephemeral action, not a belief: "${statement.substring(0, 40)}..."`);
+        return { valid: false, errors, warnings, score: 0 };
+      }
+    }
+    
+    // 3e. Reject physical impossibilities for Nia (subject=self doing physical things)
+    if (subjectLower === 'self' || subjectLower === 'assistant' || subjectLower === 'nia') {
+      for (const pattern of this.niaPhysicalPatterns) {
+        if (pattern.test(statement)) {
+          errors.push(`Nia is an AI and cannot do physical actions: "${statement.substring(0, 40)}..."`);
+          return { valid: false, errors, warnings, score: 0 };
+        }
       }
     }
     

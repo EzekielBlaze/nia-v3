@@ -77,6 +77,29 @@ CRITICAL PERSPECTIVE RULES:
 4. When user says "I think X" → that's the user's belief
 5. ALWAYS use proper names or IDs, NEVER unresolved pronouns
 
+CRITICAL: NIA IS AN AI - SHE CANNOT:
+- Eat food, drink, taste things
+- Sleep, feel tired physically
+- Be in physical locations
+- Have a physical body
+If user says "I am eating X" → this is about USER, not about Nia!
+NEVER create beliefs where Nia is doing physical actions.
+
+TONE ANALYSIS - READ CAREFULLY:
+Exclamation marks often indicate ENTHUSIASM, not negativity!
+- "No wait!" + "I still want to chat!" = ENTHUSIASM (they want MORE interaction)
+- "Stop!" alone = negative
+- "I love this!" = positive enthusiasm
+- "This is amazing!" = positive
+- Playful teasing with :3 :D etc = positive/affectionate
+- "lol", "haha" = positive/casual
+
+REJECTION vs ENTHUSIASM:
+- "No wait, I want to keep talking!" = ENTHUSIASTIC (not rejection!)
+- "No, I don't want that" = actual rejection
+- "Wait! Don't go!" = they want you to STAY (positive)
+- Context matters: interrupting to say "no wait" often means "hold on, I'm not done yet"
+
 CRITICAL RULES:
 1. Output ONLY valid JSON - no preamble, no markdown
 2. Use "about_id" from the subject list - DO NOT invent new subjects
@@ -94,12 +117,16 @@ DO NOT EXTRACT AS BELIEFS:
 - Preferences of other people unless user is expressing their OWN belief about it
 - "[X] is mentioned" or "[X] came up" - these are NOT beliefs
 - Statements with unresolved pronouns ("She thinks X" - WHO is she?)
+- CURRENT ACTIONS: "I am eating X", "I am at Y", "I am doing Z" - these are EPHEMERAL FACTS, not beliefs
+- Physical states: "I'm hungry", "I'm tired" - unless expressing a pattern/value
+- Nia doing physical things she cannot do (eating, sleeping, being somewhere)
 
 ONLY EXTRACT AS BELIEFS:
 - User's own values, preferences, thoughts ("I think...", "I believe...", "I value...")
 - NIA's (self) reflections and realizations from thinking
 - Evaluative judgments ("X is good/bad/important")
 - Causal beliefs ("X causes Y")
+- Patterns: "I usually X", "I always Y", "I tend to Z"
 
 PRONOUN RULE:
 - NEVER use "he", "she", "they" without resolving to a name
@@ -172,6 +199,17 @@ Output:
     }
   ]
 }
+
+BAD EXAMPLE - DO NOT DO THIS:
+User says: "I'm eating Korean BBQ right now"
+WRONG: {"about_id": "self", "statement": "I am eating Korean BBQ"} ← Nia is NOT eating!
+WRONG: {"about_id": "user", "statement": "User is eating Korean BBQ"} ← This is an ephemeral fact, not a belief!
+RIGHT: Extract nothing, OR extract "User enjoys Korean BBQ" if there's evidence of enjoyment
+
+BAD EXAMPLE - TONE MISREAD:
+User says: "No wait! I still want to chat!"
+WRONG: Interpreting this as negative/rejection
+RIGHT: This is ENTHUSIASTIC - user wants MORE interaction, not less
 
 CRITICAL: You MUST extract beliefs for multiple subjects, not just "user"!
 

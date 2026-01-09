@@ -249,12 +249,13 @@ wss.on('connection', (ws) => {
       const status = await client.request('status', {});
       const cogState = await client.request('cognitive_state', {});
       const identity = await client.request('identity_status', {});
+      const initiative = await client.request('check_initiative', {});
       
       client.disconnect();
       
       ws.send(JSON.stringify({
         type: 'status',
-        data: { status, cogState, identity }
+        data: { status, cogState, identity, initiative: initiative.initiative }
       }));
     } catch (err) {
       // Daemon offline, that's ok

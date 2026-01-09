@@ -1,54 +1,50 @@
 ╔══════════════════════════════════════════════════════════════╗
 ║           NIA SESSION CONTEXT - LIVE DEBUG                   ║
 ╚══════════════════════════════════════════════════════════════╝
-Last Updated: 1/7/2026, 3:10:48 AM
-Session ID: session_1767776566561_3vhq7audm
-Session Duration: 8 minutes | Turns: 5
+Last Updated: 1/9/2026, 1:20:47 AM
+Session ID: session_1767942583303_g8e3dnwm0
+Session Duration: 11 minutes | Turns: 1
 User: blaze
 DB Connected: Yes
 
 ┌─────────────────────────────────────────────────────────────┐
 │ IMMEDIATE (Last 3 turns)                                      │
 └─────────────────────────────────────────────────────────────┘
-Blaze: yes! oooooh thatd be so fun!
-Blaze: sounds good Nia! i hate to cut this short but ive got to sleep now, is that alright?
-Blaze: sounds good, Good night my epic cat girl companion :3
+Blaze: okay! well we'll have to test tomorrow
 
 ┌─────────────────────────────────────────────────────────────┐
 │ SHORT-TERM (Last 10 minutes)                                     │
 └─────────────────────────────────────────────────────────────┘
-Topic Flow: coding → gaming → coding → tired → happy
-Current Mood: positive
-Active Topics: coding(2), gaming(1), tired(1), happy(2)
+Topic Flow: food → work → social → food → happy
+Current Mood: neutral
+Active Topics: (none)
 Boundaries: (none)
 
 ┌─────────────────────────────────────────────────────────────┐
 │ LONG-TERM (LLM Summary)                                     │
 └─────────────────────────────────────────────────────────────┘
-Last Updated: 0 min ago
-Summary: The main topics discussed were Blaze's progress on Chromaflux and planning Minecraft time with Nia. Blaze was in a positive mood, excited about the prospect of making Minecraft more interactive for Nia and potentially letting her join in on gameplay. Nia should remember to wait until Blaze has finished Phase 4 of Chromaflux before planning their Minecraft session together.
+Last Updated: 626 min ago
+Summary: [Previous session] The main topics discussed in this conversation were Blaze's sleep and rest after a rainy night, their plans to work on Chromaflux together, and Blaze's current activity at a Korean barbecue restaurant called Pho Tanh. Blaze seemed to be in a relatively good mood, with a playful tone indicated by the use of ":3" and affectionate language towards Nia and his wife Gloomie. Nia should remember that Blaze values shared experiences with Gloomie, particularly their visits to Pho Tanh restaurant.
 
 ┌─────────────────────────────────────────────────────────────┐
 │ PERSISTENCE (SQLite)                                        │
 └─────────────────────────────────────────────────────────────┘
-Total Summaries: 1
-Total Turns: 5
-Active Days: 1
-Sessions: 1
+Total Summaries: 14
+Total Turns: 185
+Active Days: 2
+Sessions: 4
 History Since: 1/7/2026
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INJECTED INTO PROMPT                                        │
 └─────────────────────────────────────────────────────────────┘
-Session: 8 min, 5 turns
+Session: 11 min, 1 turns
 
 📋 SESSION SUMMARY:
-The main topics discussed were Blaze's progress on Chromaflux and planning Minecraft time with Nia. Blaze was in a positive mood, excited about the prospect of making Minecraft more interactive for Nia and potentially letting her join in on gameplay. Nia should remember to wait until Blaze has finished Phase 4 of Chromaflux before planning their Minecraft session together.
+[Previous session] The main topics discussed in this conversation were Blaze's sleep and rest after a rainy night, their plans to work on Chromaflux together, and Blaze's current activity at a Korean barbecue restaurant called Pho Tanh. Blaze seemed to be in a relatively good mood, with a playful tone indicated by the use of ":3" and affectionate language towards Nia and his wife Gloomie. Nia should remember that Blaze values shared experiences with Gloomie, particularly their visits to Pho Tanh restaurant.
 
 📍 RECENT CONTEXT:
-Topics: coding → gaming → tired → happy | Mood: positive | Focus: coding(2), happy(2)
+Topics: food → work → social → happy
 
 💬 LAST FEW TURNS:
-Blaze: yes! oooooh thatd be so fun!
-Blaze: sounds good Nia! i hate to cut this short but ive got to sleep now, is that alright?
-Blaze: sounds good, Good night my epic cat girl companion :3
+Blaze: okay! well we'll have to test tomorrow

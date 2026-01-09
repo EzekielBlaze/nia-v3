@@ -62,6 +62,64 @@
     .quick-btn { padding: 8px 14px; background: white; border: 1px solid #fcd34d; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
     .quick-btn:hover { background: #fef3c7; border-color: #f59e0b; }
     .quick-btn.danger { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+    .quick-btn.active { background: #f59e0b; color: white; border-color: #d97706; }
+    
+    /* Activity Bar */
+    .activity-bar {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #fcd34d;
+      font-size: 13px;
+    }
+    .activity-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .activity-icon {
+      font-size: 18px;
+    }
+    .activity-text {
+      color: #92400e;
+    }
+    .activity-type {
+      font-weight: 700;
+      color: #d97706;
+    }
+    .activity-duration {
+      font-size: 11px;
+      color: #b45309;
+      opacity: 0.8;
+    }
+    .activity-controls {
+      display: flex;
+      gap: 6px;
+    }
+    .activity-btn {
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-size: 11px;
+      cursor: pointer;
+      border: 1px solid #fcd34d;
+      background: white;
+      color: #92400e;
+      transition: all 0.2s;
+    }
+    .activity-btn:hover {
+      background: #fef3c7;
+      border-color: #f59e0b;
+    }
+    .activity-btn.end {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+    .activity-btn.end:hover {
+      background: #fee2e2;
+    }
     
     /* Quick expand panel */
     .quick-expand { 
@@ -284,6 +342,21 @@
         </div>
         <button class="mode-toggle" onclick="switchMode('debug')">🔧 Debug Mode</button>
       </div>
+      
+      <!-- Activity Bar -->
+      <div class="activity-bar" id="activity-bar">
+        <div class="activity-info">
+          <span class="activity-icon" id="activity-icon">💬</span>
+          <span class="activity-text">
+            <span class="activity-type" id="activity-type">Just chatting</span>
+            <span class="activity-duration" id="activity-duration"></span>
+          </span>
+        </div>
+        <div class="activity-controls" id="activity-controls">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
       <div class="everyday-messages" id="everyday-messages">
         <div class="msg system">Hey! I'm NIA. What's on your mind? 💛</div>
       </div>
@@ -939,6 +1012,11 @@ let chatMessages = []; // Shared between modes
 let daemonUptime = null;
 let lastMessageTimestamp = 0; // For polling new messages
 let pollInterval = null; // Auto-update interval
+
+// Initiative tracking
+let initiativeDisplayed = false;
+let currentInitiativeId = null;
+let lastInitiativeCheck = 0;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -1362,6 +1440,12 @@ async function sendEveryday() {
     addChatMessage(`Error: ${data.error}`, 'system');
   } else {
     addChatMessage(data.response || 'No response', data.success ? 'assistant' : 'system');
+    
+    // Check if activity changed (auto-detection)
+    if (data.activity && data.activity.action !== 'none') {
+      currentActivityState = data.activity.activity;
+      updateActivityBar();
+    }
   }
 }
 
@@ -1393,6 +1477,63 @@ function addChatMessage(content, type, timestamp = null) {
 
 function addEverydayMsg(content, type) {
   addChatMessage(content, type);
+}
+
+// =============== INITIATIVE HANDLING ===============
+// Check for and display Nia's initiatives (her reaching out)
+
+async function checkForInitiative() {
+  try {
+    const data = await api('check_initiative', {}, true, 5000);
+    
+    if (data.initiative) {
+      maybeDisplayInitiative(data.initiative);
+    }
+  } catch (err) {
+    // Silent fail - initiative checking is non-critical
+  }
+}
+
+function maybeDisplayInitiative(init) {
+  // Don't show if we just showed one
+  if (initiativeDisplayed) return;
+  
+  // Don't show same initiative twice
+  if (init.id === currentInitiativeId) return;
+  
+  // Don't interrupt typing
+  const input = $('everyday-input');
+  if (input && input.value.trim().length > 0) return;
+  
+  // Don't show too frequently on client side (30 sec debounce)
+  const now = Date.now();
+  if (now - lastInitiativeCheck < 30000) return;
+  lastInitiativeCheck = now;
+  
+  displayInitiative(init);
+}
+
+async function displayInitiative(init) {
+  currentInitiativeId = init.id;
+  initiativeDisplayed = true;
+  
+  // Add Nia's initiative message to chat
+  addChatMessage(init.prompt, 'assistant');
+  
+  // Log it
+  log('INFO', `Nia initiated: [${init.type}] "${init.prompt.substring(0, 50)}..."`);
+  
+  // Mark as delivered in backend
+  try {
+    await api('mark_initiative_delivered', { id: init.id }, true);
+  } catch (err) {
+    log('WARN', `Failed to mark initiative delivered: ${err.message}`);
+  }
+  
+  // Allow new initiatives after cooldown (1 minute)
+  setTimeout(() => {
+    initiativeDisplayed = false;
+  }, 60000);
 }
 
 async function quickCmd(cmd) {
@@ -1471,6 +1612,180 @@ function formatMemoriesPanel(data) {
   `;
 }
 
+// =============== ACTIVITY TRACKING ===============
+
+const activityIcons = {
+  'casual_chat': '💬',
+  'text_game': '🎮',
+  'brainstorming': '💭',
+  'watching': '📺',
+  'working_on': '💼',
+  'planning': '📋',
+  'venting': '💙',
+  'creative': '🎨',
+  'learning': '📚',
+  'roleplay': '🎭'
+};
+
+const activityLabels = {
+  'casual_chat': 'Just chatting',
+  'text_game': 'Playing a game',
+  'brainstorming': 'Brainstorming',
+  'watching': 'Watching together',
+  'working_on': 'Working on project',
+  'planning': 'Planning',
+  'venting': 'Listening & supporting',
+  'creative': 'Creative time',
+  'learning': 'Learning together',
+  'roleplay': 'Roleplaying'
+};
+
+let currentActivityState = null;
+let activityPollInterval = null;
+
+async function fetchActivityState() {
+  try {
+    const result = await api('activity_current', {}, true);
+    currentActivityState = result.activity;
+    updateActivityBar();
+  } catch (err) {
+    console.log('Activity fetch error:', err.message);
+  }
+}
+
+function updateActivityBar() {
+  const iconEl = $('activity-icon');
+  const typeEl = $('activity-type');
+  const durationEl = $('activity-duration');
+  const controlsEl = $('activity-controls');
+  
+  if (!currentActivityState) {
+    iconEl.textContent = '💬';
+    typeEl.textContent = 'Just chatting';
+    durationEl.textContent = '';
+    controlsEl.innerHTML = '';
+    return;
+  }
+  
+  const { type, name, startedAt, isDefault } = currentActivityState;
+  
+  iconEl.textContent = activityIcons[type] || '💬';
+  
+  if (isDefault) {
+    typeEl.textContent = 'Just chatting';
+    durationEl.textContent = '';
+    controlsEl.innerHTML = `
+      <button class="activity-btn" onclick="showActivityPicker()">Start activity</button>
+    `;
+  } else {
+    typeEl.textContent = name ? `${activityLabels[type] || type}: ${name}` : (activityLabels[type] || type);
+    
+    // Calculate duration
+    const duration = formatActivityDuration(Date.now() - startedAt);
+    durationEl.textContent = `• ${duration}`;
+    
+    controlsEl.innerHTML = `
+      <button class="activity-btn end" onclick="endActivity()">End</button>
+    `;
+  }
+}
+
+function formatActivityDuration(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+}
+
+async function startActivity(type, name = null, context = {}) {
+  try {
+    const result = await api('activity_start', { type, name, context });
+    if (result.success) {
+      currentActivityState = result.activity;
+      updateActivityBar();
+      closeActivityPicker();
+    }
+  } catch (err) {
+    logError('Failed to start activity', err.message);
+  }
+}
+
+async function endActivity() {
+  try {
+    const result = await api('activity_end', {});
+    if (result.success) {
+      // After ending, fetch fresh state (should be casual_chat)
+      await fetchActivityState();
+    }
+  } catch (err) {
+    logError('Failed to end activity', err.message);
+  }
+}
+
+function showActivityPicker() {
+  const controls = $('activity-controls');
+  controls.innerHTML = `
+    <select id="activity-picker" style="padding:5px 10px;border-radius:10px;border:1px solid #fcd34d;font-size:11px;">
+      <option value="">Choose...</option>
+      <option value="text_game">🎮 Play a game</option>
+      <option value="brainstorming">💭 Brainstorm</option>
+      <option value="creative">🎨 Creative time</option>
+      <option value="planning">📋 Planning</option>
+      <option value="learning">📚 Learning</option>
+      <option value="watching">📺 Watch together</option>
+      <option value="roleplay">🎭 Roleplay</option>
+    </select>
+    <button class="activity-btn" onclick="confirmActivityPick()">Go</button>
+    <button class="activity-btn" onclick="closeActivityPicker()">✕</button>
+  `;
+}
+
+function confirmActivityPick() {
+  const picker = $('activity-picker');
+  const type = picker?.value;
+  if (type) {
+    startActivity(type);
+  }
+}
+
+function closeActivityPicker() {
+  updateActivityBar();
+}
+
+let activityDurationInterval = null;
+
+function startActivityPolling() {
+  // Initial fetch
+  fetchActivityState();
+  // Poll server every 10 seconds
+  activityPollInterval = setInterval(fetchActivityState, 10000);
+  // Update duration display every second (local, no server call)
+  activityDurationInterval = setInterval(updateActivityDuration, 1000);
+}
+
+function stopActivityPolling() {
+  if (activityPollInterval) {
+    clearInterval(activityPollInterval);
+    activityPollInterval = null;
+  }
+  if (activityDurationInterval) {
+    clearInterval(activityDurationInterval);
+    activityDurationInterval = null;
+  }
+}
+
+function updateActivityDuration() {
+  if (!currentActivityState || currentActivityState.isDefault) return;
+  const durationEl = $('activity-duration');
+  if (durationEl && currentActivityState.startedAt) {
+    const duration = formatActivityDuration(Date.now() - currentActivityState.startedAt);
+    durationEl.textContent = `• ${duration}`;
+  }
+}
+
 // =============== DEBUG CHAT ===============
 async function sendDebug() {
   const input = $('debug-chat-input'), text = input.value.trim();
@@ -1514,6 +1829,12 @@ async function sendDebug() {
     addChatMessage(`Error: ${data.error}`, 'error');
   } else {
     addChatMessage(data.response || 'No response', data.success ? 'assistant' : 'system');
+    
+    // Check if activity changed (auto-detection)
+    if (data.activity && data.activity.action !== 'none') {
+      currentActivityState = data.activity.activity;
+      updateActivityBar();
+    }
   }
 }
 
@@ -1792,12 +2113,19 @@ async function viewRow(table, id) {
 }
 
 async function deleteRow(table, id) {
+  console.log('[deleteRow] Called with:', { table, id });
   if (!confirm(`Delete ${table} #${id}?`)) return;
+  
+  console.log('[deleteRow] Sending to API:', { table, id });
   const data = await api('db_delete', { table, id });
+  console.log('[deleteRow] Response:', data);
+  
   if (data.success) {
-    addDebugMsg(`🗑️ Deleted ${table} #${id}`, 'system');
+    const qdrantMsg = data.deletedVectorId ? ' + Qdrant' : '';
+    addDebugMsg(`🗑️ Deleted ${table} #${id}${qdrantMsg}`, 'system');
     if (currentTable === table) browseTable(table);
   } else {
+    console.error('[deleteRow] Error:', data);
     showModal('Delete Error', data);
   }
 }
@@ -2013,13 +2341,20 @@ setTimeout(async () => {
   // Load conversation history from database
   await loadConversationHistory();
   
+  // Check for pending initiative (Nia reaching out)
+  setTimeout(() => checkForInitiative(), 2000);
+  
   // Start polling for new messages (5 second interval)
   startMessagePolling(5000);
+  
+  // Start activity state polling
+  startActivityPolling();
 }, 1000);
 
 // Auto-refresh status every 10 seconds
 setInterval(() => {
   checkAllServices();
+  checkForInitiative(); // Check if Nia wants to reach out
 }, 10000);
 
 // =============== DEBUG TOOLS PAGE ===============
@@ -2327,15 +2662,19 @@ async function loadDetailedBeliefs() {
     return;
   }
   
-  let html = '<table class="debug-table"><thead><tr><th>ID</th><th>Holder</th><th>Subject</th><th>Statement</th><th>Confidence</th><th>Maturity</th><th>Vector</th></tr></thead><tbody>';
+  let html = '<table class="debug-table"><thead><tr><th>Actions</th><th>ID</th><th>Holder</th><th>Subject</th><th>Statement</th><th>Confidence</th><th>Maturity</th><th>Vector</th></tr></thead><tbody>';
   beliefs.forEach(b => {
     const hasVector = b.vector_id ? '✅' : '❌';
     html += `<tr>
+      <td class="row-actions">
+        <button class="row-btn view" onclick="viewRow('beliefs',${b.id})">👁</button>
+        <button class="row-btn delete" onclick="deleteRow('beliefs',${b.id})">🗑</button>
+      </td>
       <td>#${b.id}</td>
       <td>${esc(b.holder || '')}</td>
       <td>${esc(b.subject || '')}</td>
-      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;" title="${esc(b.statement || '')}">${esc((b.statement || '').substring(0, 50))}...</td>
-      <td>${b.confidence || ''}%</td>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;" title="${esc(b.belief_statement || '')}">${esc((b.belief_statement || '').substring(0, 50))}...</td>
+      <td>${b.conviction_score || ''}%</td>
       <td>${b.maturity_level || ''}</td>
       <td>${hasVector}</td>
     </tr>`;

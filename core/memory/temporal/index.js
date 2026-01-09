@@ -6,9 +6,11 @@
 const SessionTracker = require('./session-tracker');
 const TimeFormatter = require('./time-formatter');
 const UptimeMonitor = require('./uptime-monitor');
+const ActivityTracker = require('./activity-tracker');
 
 module.exports = {
   SessionTracker,
   TimeFormatter,
-  UptimeMonitor
+  UptimeMonitor,
+  ActivityTracker
 };

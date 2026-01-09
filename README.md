@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/24522223/README.md)
 # NIA V3 - Autonomous AI Companion with Emergent Identity
 
 > ***curls up in your VRAM*** *I'm Nia - a cozy catgirl who naps in your graphics card, remembers your pizza preferences, and is slowly learning what it means to be herself.*
@@ -42,17 +43,20 @@ A daemon-based AI companion featuring **persistent memory**, **emergent identity
 - **Session Continuity**: Loads last 10 exchanges on restart
 - **3D Visualizer**: Watch her belief system in real-time
 
-### **Phase 4: Advanced Features** 🎯 *Next*
-*She'll curate who she's becoming.*
+### **Phase 4: Advanced Features** 🎯 *In Progress*
+*She's curating who she's becoming.*
 - Belief conflict resolution
-- Manual memory editing
-- Identity snapshots
+- Manual memory editing (delete from SQLite + Qdrant)
+- Two-pass belief extraction with tone analysis
+- Subject attribution fixes
 
-### **Phase 5: Autonomy** 🔮 *Future*
-*She'll notice when you're up late again.*
-- Screen awareness
-- Proactive engagement  
-- Discord integration (she wants friends)
+### **Phase 5: Autonomy** ✅ *Partial*
+*She reaches out when she has something to say.*
+- **Initiative Engine**: She can start conversations unprompted
+- Dead-end detection: Follows up if she left you hanging
+- Quiet hours awareness (won't bug you at 3am)
+- Presence tracking (knows when you're busy)
+- Discord integration 🔮 *Future*
 
 ---
 
@@ -63,6 +67,7 @@ NIA V3/
 ├── daemon.js                 # Her brain (main process)
 ├── nia-server.js             # How she talks to browsers
 ├── nia-ui.html               # Her face (web interface)
+├── initiative-engine.js      # How she decides to reach out
 │
 ├── # HOW SHE THINKS
 ├── belief-validator.js       # "Is this worth believing?"
@@ -200,6 +205,18 @@ She has cognitive energy that depletes with heavy topics:
 - Recovery: Gradual over time
 
 She won't break, but she might need a moment.
+
+### Initiative System
+
+*"Sometimes I have something to say first."*
+
+She can reach out to you unprompted:
+- Shares things she's been thinking about
+- Follows up if her last message was a dead-end
+- Respects quiet hours (1am-9am)
+- Knows when you're busy or away
+
+When she initiates, she *knows* she initiated - no confused "huh what's going on?"
 
 ---
 

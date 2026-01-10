@@ -28,6 +28,17 @@
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .mode-toggle { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4); color: white; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s; }
     .mode-toggle:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+    
+    /* LLM Toggle (local/cloud) */
+    .llm-toggle { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 20px; margin-right: 10px; }
+    .llm-toggle-label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 600; text-transform: uppercase; }
+    .llm-toggle-switch { display: flex; background: rgba(0,0,0,0.3); border-radius: 15px; overflow: hidden; }
+    .llm-toggle-btn { padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; background: transparent; color: rgba(255,255,255,0.6); }
+    .llm-toggle-btn.active { background: white; color: #d97706; border-radius: 12px; }
+    .llm-toggle-btn:hover:not(.active) { color: white; }
+    .llm-toggle-btn.cloud.active { background: #22c55e; color: white; }
+    .llm-toggle-speed { font-size: 9px; color: rgba(255,255,255,0.6); }
+    @keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(-10px); } 10% { opacity: 1; transform: translateX(-50%) translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; } }
     .everyday-messages { flex: 1; padding: 20px; overflow-y: auto; background: #fffbeb; }
     .everyday-messages .msg { margin-bottom: 15px; padding: 14px 18px; border-radius: 18px; max-width: 75%; line-height: 1.6; font-size: 15px; }
     .everyday-messages .msg.user { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; margin-left: auto; border-bottom-right-radius: 6px; }
@@ -339,6 +350,13 @@
         <div class="everyday-info">
           <h1>NIA <span class="conn-dot" id="everyday-conn-dot"></span></h1>
           <div class="status" id="everyday-status">Connecting...</div>
+        </div>
+        <div class="llm-toggle" id="llm-toggle">
+          <span class="llm-toggle-label">LLM:</span>
+          <div class="llm-toggle-switch">
+            <button class="llm-toggle-btn local active" onclick="setLLMMode('local')">🏠 Local</button>
+            <button class="llm-toggle-btn cloud" onclick="setLLMMode('cloud')">☁️ Cloud</button>
+          </div>
         </div>
         <button class="mode-toggle" onclick="switchMode('debug')">🔧 Debug Mode</button>
       </div>
@@ -1157,6 +1175,78 @@ function switchMode(mode) {
   if (mode === 'debug') { 
     checkAllServices(); 
     loadCognitiveState(); 
+  }
+}
+
+// ============================================
+// LLM MODE TOGGLE (local/cloud)
+// ============================================
+
+let currentLLMMode = 'local';
+
+async function setLLMMode(mode) {
+  const data = await api('llm_set_mode', { mode }, false, 5000);
+  
+  if (data.success) {
+    currentLLMMode = data.mode;
+    updateLLMToggleUI(data.mode);
+    log('INFO', `LLM mode: ${data.mode}`);
+    
+    // Show brief notification
+    const msg = mode === 'cloud' ? '☁️ Cloud mode - faster responses!' : '🏠 Local mode - private & uncensored';
+    showLLMNotification(msg);
+  } else {
+    log('ERROR', `Failed to set LLM mode: ${data.error}`);
+    showLLMNotification(`❌ ${data.error}`, true);
+  }
+}
+
+async function toggleLLMMode() {
+  const newMode = currentLLMMode === 'local' ? 'cloud' : 'local';
+  await setLLMMode(newMode);
+}
+
+function updateLLMToggleUI(mode) {
+  const localBtn = document.querySelector('.llm-toggle-btn.local');
+  const cloudBtn = document.querySelector('.llm-toggle-btn.cloud');
+  
+  if (localBtn && cloudBtn) {
+    localBtn.classList.toggle('active', mode === 'local');
+    cloudBtn.classList.toggle('active', mode === 'cloud');
+  }
+}
+
+function showLLMNotification(msg, isError = false) {
+  // Remove existing notification
+  const existing = document.querySelector('.llm-notification');
+  if (existing) existing.remove();
+  
+  const notif = document.createElement('div');
+  notif.className = 'llm-notification';
+  notif.style.cssText = `
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: ${isError ? '#ef4444' : '#22c55e'}; color: white;
+    padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    z-index: 10000; animation: fadeInOut 2s forwards;
+  `;
+  notif.textContent = msg;
+  document.body.appendChild(notif);
+  
+  setTimeout(() => notif.remove(), 2000);
+}
+
+async function checkLLMStatus() {
+  const data = await api('llm_status', {}, true, 3000);
+  
+  if (data && !data.error) {
+    currentLLMMode = data.mode;
+    updateLLMToggleUI(data.mode);
+    
+    // Hide toggle if cloud not available
+    const toggle = document.getElementById('llm-toggle');
+    if (toggle && !data.cloudAvailable) {
+      toggle.style.display = 'none';
+    }
   }
 }
 
@@ -2340,6 +2430,9 @@ setTimeout(async () => {
   
   // Load conversation history from database
   await loadConversationHistory();
+  
+  // Check LLM mode (local/cloud toggle)
+  checkLLMStatus();
   
   // Check for pending initiative (Nia reaching out)
   setTimeout(() => checkForInitiative(), 2000);

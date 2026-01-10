@@ -33,6 +33,8 @@ try {
 
 class MemoryRelevanceScorer {
   constructor(options = {}) {
+    // LLM client (injected) or fallback to local
+    this.llmClient = options.llmClient || null;
     this.llmEndpoint = options.llmEndpoint || 'http://localhost:1234/v1/chat/completions';
     this.llmModel = options.llmModel || 'local-model';
     this.scoreThreshold = options.scoreThreshold || 6; // 0-10, keep >= this
@@ -161,19 +163,26 @@ Output ONLY the JSON object:`;
   }
   
   /**
-   * Call LLM API
+   * Call LLM API (uses injected client if available)
    */
   async _callLLM(prompt) {
+    const systemPrompt = 'You score memory relevance. Output ONLY valid JSON with scores array. No preamble, no explanation.';
+    
+    // Use injected llmClient if available
+    if (this.llmClient) {
+      return this.llmClient.chat(systemPrompt, [
+        { role: 'user', content: prompt }
+      ], { temperature: 0.1, maxTokens: 200 });
+    }
+    
+    // Fallback to local fetch
     const response = await fetch(this.llmEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.llmModel,
         messages: [
-          { 
-            role: 'system', 
-            content: 'You score memory relevance. Output ONLY valid JSON with scores array. No preamble, no explanation.'
-          },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
         temperature: 0.1, // Low temp for consistent scoring

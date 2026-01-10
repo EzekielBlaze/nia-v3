@@ -23,9 +23,10 @@ const DB_PATH = path.join(DATA_DIR, 'nia.db');
 const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://127.0.0.1:1234';
 
 class BeliefProcessor {
-  constructor(dbPath = DB_PATH) {
+  constructor(dbPath = DB_PATH, options = {}) {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.llmClient = options.llmClient || null;  // Injected LLM client
     logger.info('BeliefProcessor initialized');
   }
 
@@ -187,26 +188,38 @@ Rules:
 Return ONLY valid JSON, no markdown.`;
 
     try {
-      const response = await fetch(`${LM_STUDIO_URL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'local-model',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          max_tokens: 1000
-        })
-      });
+      let content;
+      
+      // Use injected llmClient if available
+      if (this.llmClient) {
+        content = await this.llmClient.chat(
+          'You extract beliefs from AI thinking. Output ONLY valid JSON.',
+          [{ role: 'user', content: prompt }],
+          { temperature: 0.3, maxTokens: 1000 }
+        );
+      } else {
+        // Fallback to local fetch
+        const response = await fetch(`${LM_STUDIO_URL}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'local-model',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3,
+            max_tokens: 1000
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error(`LLM request failed: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`LLM request failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        content = data.choices?.[0]?.message?.content || '';
       }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
       
       // Clean and parse JSON
-      let cleaned = content.trim();
+      let cleaned = (content || '').trim();
       cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '');
       
       const result = JSON.parse(cleaned);

@@ -9,3 +9,11 @@ logs/
 daemon/*.log 
 *.log 
 _archive/ 
+.env 
+.env 
+.env 
+.env 
+.env 
+.env 
+.env 
+.env 

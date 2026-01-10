@@ -27,6 +27,15 @@ try {
   console.log('ActivityTracker not found, activity awareness disabled');
 }
 
+// LLM Client (local/cloud toggle)
+let llmClient = null;
+try {
+  llmClient = require('./llm-client');
+  console.log(`✅ LLM client loaded (mode: ${llmClient.getMode()})`);
+} catch (e) {
+  console.log('⚠️ LLM client not found - using built-in local only');
+}
+
 // Configuration
 const CONFIG = {
   DB_PATH: process.env.NIA_DB_PATH || path.join(__dirname, 'data', 'nia.db'),
@@ -952,61 +961,107 @@ Write ONLY the message, nothing else:`;
   }
 
   /**
-   * Call the LLM to generate message
+   * Call the LLM to generate message (uses llmClient if available)
    */
   async callLLM(prompt) {
-    const response = await fetch(CONFIG.LLM_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: CONFIG.LLM_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
-        max_tokens: 150,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`LLM returned ${response.status}`);
+    // Use llmClient if available
+    if (llmClient) {
+      const message = await llmClient.chat(
+        'You are Nia, a cozy catgirl AI companion. Generate a natural, in-character message.',
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.8, maxTokens: 150, timeout: 30000 }
+      );
+      
+      // Clean up any artifacts
+      return (message || '')
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Nia:\s*/i, '')
+        .trim();
     }
+    
+    // Fallback to local fetch
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    try {
+      const response = await fetch(CONFIG.LLM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: CONFIG.LLM_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.8,
+          max_tokens: 150,
+        }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
 
-    const data = await response.json();
-    const message = data.choices?.[0]?.message?.content?.trim();
+      if (!response.ok) {
+        throw new Error(`LLM returned ${response.status}`);
+      }
 
-    if (!message) {
-      throw new Error('Empty response from LLM');
+      const data = await response.json();
+      const message = data.choices?.[0]?.message?.content?.trim();
+
+      if (!message) {
+        throw new Error('Empty response from LLM');
+      }
+
+      // Clean up any artifacts
+      return message
+        .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
+        .replace(/^Nia:\s*/i, '')      // Remove "Nia:" prefix if present
+        .trim();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
     }
-
-    // Clean up any artifacts
-    return message
-      .replace(/^["']|["']$/g, '')  // Remove surrounding quotes
-      .replace(/^Nia:\s*/i, '')      // Remove "Nia:" prefix if present
-      .trim();
   }
   
   /**
-   * Call LLM for short yes/no decisions
+   * Call LLM for short yes/no decisions (uses llmClient if available)
    */
   async callLLMShort(prompt) {
-    const response = await fetch(CONFIG.LLM_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: CONFIG.LLM_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,  // Lower temp for more consistent decisions
-        max_tokens: 50,    // Short response
-      }),
-      signal: AbortSignal.timeout(15000),  // Shorter timeout
-    });
-
-    if (!response.ok) {
-      throw new Error(`LLM returned ${response.status}`);
+    // Use llmClient if available
+    if (llmClient) {
+      return llmClient.chat(
+        'You make quick yes/no decisions. Be brief.',
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.3, maxTokens: 50, timeout: 15000 }
+      );
     }
+    
+    // Fallback to local fetch
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    try {
+      const response = await fetch(CONFIG.LLM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: CONFIG.LLM_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,  // Lower temp for more consistent decisions
+          max_tokens: 50,    // Short response
+        }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
 
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim() || '';
+      if (!response.ok) {
+        throw new Error(`LLM returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content?.trim() || '';
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
   }
 
   /**

@@ -24,6 +24,7 @@ class AutonomousExtractionManager {
     this.gatekeeper = new ExtractionGatekeeper(this.cognitiveState, this.db);
     this.extractionEngine = new TwoPassExtractionEngine(dbPath, {
       ...options,
+      llmClient: options.llmClient || null,  // Inject LLM client
       beliefEmbedder: options.beliefEmbedder || null
     });
     

@@ -2,6 +2,15 @@ const logger = require("./utils/logger");
 const config = require("./utils/config");
 const IPCServer = require("./ipc-server");
 
+// LLM Client (local/cloud toggle)
+let llmClient = null;
+try {
+  llmClient = require('./llm-client');
+  console.log(`✅ LLM client loaded (mode: ${llmClient.getMode()})`);
+} catch (err) {
+  console.log('⚠️ LLM client not found - using built-in local only');
+}
+
 // Memory extraction integrator (for auto-extracting episodic memories)
 let MemoryExtractionIntegrator = null;
 try {
@@ -146,6 +155,7 @@ class NiaDaemon {
     // Session context manager (three-tier: immediate, short-term, long-term)
     const SessionContextManager = require('./session-context-manager');
     this.contextManager = new SessionContextManager({
+      llmClient: llmClient,  // Inject LLM client
       llmEndpoint: this.llmEndpoint,
       longTermUpdateInterval: 5,  // LLM summary every 5 turns
       userId: 'blaze'  // For multi-user support later
@@ -284,6 +294,7 @@ class NiaDaemon {
       if (MemoryRelevanceScorer) {
         try {
           this.relevanceScorer = new MemoryRelevanceScorer({
+            llmClient: llmClient,  // Inject LLM client
             llmEndpoint: this.llmEndpoint,
             llmModel: this.llmModel,
             scoreThreshold: 6,  // Keep memories with score >= 6
@@ -476,6 +487,7 @@ class NiaDaemon {
       const AutonomousExtractionManager = require('./autonomous-extraction-manager');
       
       this.extractionManager = new AutonomousExtractionManager(this.identityDbPath, {
+        llmClient: llmClient,  // Inject LLM client
         recoveryInterval: 600000,  // 10 minutes
         dryRun: false
       });
@@ -607,6 +619,44 @@ class NiaDaemon {
         qdrant_connected: this.qdrantAvailable,
         identity_loaded: this.identity !== null
       };
+    });
+    
+    // ============================================
+    // LLM MODE HANDLERS (local/cloud toggle)
+    // ============================================
+    
+    // Get current LLM mode
+    this.ipcServer.registerHandler("llm_status", async () => {
+      if (!llmClient) {
+        return { mode: 'local', cloudAvailable: false, error: 'llm-client not loaded' };
+      }
+      return llmClient.getStatus();
+    });
+    
+    // Set LLM mode
+    this.ipcServer.registerHandler("llm_set_mode", async (data) => {
+      if (!llmClient) {
+        return { success: false, error: 'llm-client not loaded' };
+      }
+      try {
+        const newMode = llmClient.setMode(data.mode);
+        return { success: true, mode: newMode };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+    
+    // Toggle LLM mode
+    this.ipcServer.registerHandler("llm_toggle", async () => {
+      if (!llmClient) {
+        return { success: false, error: 'llm-client not loaded' };
+      }
+      try {
+        const newMode = llmClient.toggleMode();
+        return { success: true, mode: newMode };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     });
     
     // ============================================
@@ -1749,7 +1799,9 @@ class NiaDaemon {
       try {
         // Try to use belief extraction engine if available
         const BeliefExtractionEngine = require('./belief-extraction-engine-v2');
-        const engine = new BeliefExtractionEngine(this.identityDbPath);
+        const engine = new BeliefExtractionEngine(this.identityDbPath, {
+          llmClient: llmClient  // Inject LLM client
+        });
         
         const beliefs = await engine.extractBeliefs(data.text, {
           source: 'manual_ui',
@@ -2259,7 +2311,7 @@ class NiaDaemon {
   getBeliefSummary() {
     try {
       const BeliefProcessor = require("./belief-processor");
-      const processor = new BeliefProcessor(this.identityDbPath);
+      const processor = new BeliefProcessor(this.identityDbPath, { llmClient: llmClient });
       const summary = processor.getBeliefSummary();
       processor.close();
       return summary;
@@ -2275,7 +2327,7 @@ class NiaDaemon {
   getActiveBeliefs() {
     try {
       const BeliefProcessor = require("./belief-processor");
-      const processor = new BeliefProcessor(this.identityDbPath);
+      const processor = new BeliefProcessor(this.identityDbPath, { llmClient: llmClient });
       const beliefs = processor.getActiveBeliefs();
       processor.close();
       return { beliefs, total: beliefs.length };
@@ -2320,7 +2372,7 @@ class NiaDaemon {
   async triggerBeliefProcessing() {
     try {
       const BeliefProcessor = require("./belief-processor");
-      const processor = new BeliefProcessor(this.identityDbPath);
+      const processor = new BeliefProcessor(this.identityDbPath, { llmClient: llmClient });
       
       const results = await processor.process({
         maxEntries: 10,
@@ -3605,9 +3657,18 @@ You ARE yourself. Blaze is your person. Express yourself through your tail, ears
   }
   
   /**
-   * Call LM Studio API
+   * Call LLM (uses llm-client if available, else built-in local)
    */
   async _callLLM(systemPrompt, messages) {
+    // Use llm-client if available (supports local/cloud toggle)
+    if (llmClient) {
+      return llmClient.chat(systemPrompt, messages, {
+        temperature: 0.7,
+        maxTokens: 2048
+      });
+    }
+    
+    // Fallback: built-in local-only implementation
     const fetch = require("node-fetch");
     
     const requestBody = {
@@ -3823,7 +3884,7 @@ You ARE yourself. Blaze is your person. Express yourself through your tail, ears
   async _processBeliefsPeriodically() {
     try {
       const BeliefProcessor = require("./belief-processor");
-      const processor = new BeliefProcessor(this.identityDbPath);
+      const processor = new BeliefProcessor(this.identityDbPath, { llmClient: llmClient });
       
       // Check if there are unprocessed entries
       const unprocessed = processor.getUnprocessedThinking(1);

@@ -27,6 +27,8 @@ class TwoPassExtractionEngine {
     this.upserter = new BeliefUpserter(this.db, options.beliefEmbedder || null);
     this.dryRun = options.dryRun || false;
     
+    // LLM client (injected) or fallback to local
+    this.llmClient = options.llmClient || null;
     this.llmEndpoint = options.llmEndpoint || 'http://localhost:1234/v1/chat/completions';
     this.llmModel = options.llmModel || 'local-model';
     
@@ -107,9 +109,17 @@ class TwoPassExtractionEngine {
   }
   
   /**
-   * Call LLM API
+   * Call LLM API (uses injected client if available)
    */
   async callLLM(systemPrompt, userPrompt, temperature = 0.3) {
+    // Use injected llmClient if available
+    if (this.llmClient) {
+      return this.llmClient.chat(systemPrompt, [
+        { role: 'user', content: userPrompt }
+      ], { temperature, maxTokens: 2000 });
+    }
+    
+    // Fallback to local fetch
     try {
       const response = await fetch(this.llmEndpoint, {
         method: 'POST',

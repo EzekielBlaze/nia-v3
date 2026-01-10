@@ -13,6 +13,7 @@ class MemoryExtractionIntegrator {
     this.daemon = daemon;
     this.engine = null;
     this.enabled = true;
+    this.llmClient = null;  // Will be set from daemon
     
     // Throttling
     this.extractionQueue = [];
@@ -29,7 +30,16 @@ class MemoryExtractionIntegrator {
       // Get embedder from daemon's memory integrator if available
       const embedder = this.daemon.memoryIntegrator?.embedder || null;
       
+      // Get llmClient from daemon (global)
+      let llmClient = null;
+      try {
+        llmClient = require('./llm-client');
+      } catch (e) {
+        // llm-client not available
+      }
+      
       this.engine = new MemoryExtractionEngine(this.daemon.identityDbPath, {
+        llmClient: llmClient,  // Inject LLM client
         llmEndpoint: this.daemon.llmEndpoint,
         llmModel: this.daemon.llmModel,
         embedder: embedder,
@@ -39,6 +49,9 @@ class MemoryExtractionIntegrator {
       logger.info('MemoryExtractionIntegrator initialized');
       if (embedder) {
         logger.info('  - Auto-embedding to Qdrant: enabled');
+      }
+      if (llmClient) {
+        logger.info(`  - LLM client: ${llmClient.getMode()} mode`);
       }
       return true;
       

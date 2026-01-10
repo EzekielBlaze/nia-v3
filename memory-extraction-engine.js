@@ -28,6 +28,8 @@ class MemoryExtractionEngine {
     this.upserter = new MemoryUpserter(this.db, this.embedder);
     this.dryRun = options.dryRun || false;
     
+    // LLM client (injected) or fallback to local
+    this.llmClient = options.llmClient || null;
     this.llmEndpoint = options.llmEndpoint || 'http://localhost:1234/v1/chat/completions';
     this.llmModel = options.llmModel || 'local-model';
     
@@ -82,9 +84,17 @@ class MemoryExtractionEngine {
   }
   
   /**
-   * Call LLM API
+   * Call LLM API (uses injected client if available)
    */
   async _callLLM(systemPrompt, userPrompt, temperature = 0.2) {
+    // Use injected llmClient if available
+    if (this.llmClient) {
+      return this.llmClient.chat(systemPrompt, [
+        { role: 'user', content: userPrompt }
+      ], { temperature, maxTokens: 1000 });
+    }
+    
+    // Fallback to local fetch
     try {
       const response = await fetch(this.llmEndpoint, {
         method: 'POST',

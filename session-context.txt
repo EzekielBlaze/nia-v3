@@ -1,50 +1,54 @@
 ╔══════════════════════════════════════════════════════════════╗
 ║           NIA SESSION CONTEXT - LIVE DEBUG                   ║
 ╚══════════════════════════════════════════════════════════════╝
-Last Updated: 1/9/2026, 4:27:13 PM
-Session ID: session_1767997494778_u01fgy2pz
-Session Duration: 2 minutes | Turns: 1
+Last Updated: 1/10/2026, 4:21:34 AM
+Session ID: session_1768036147308_2a44xnhd3
+Session Duration: 72 minutes | Turns: 58
 User: blaze
 DB Connected: Yes
 
 ┌─────────────────────────────────────────────────────────────┐
 │ IMMEDIATE (Last 3 turns)                                      │
 └─────────────────────────────────────────────────────────────┘
-Blaze: dang maybe it didnt go through, one more update brb
+Blaze: oh nia? i wonder if this works.... remember to add asterisks in your action responses
+Blaze: there we go yo udid it
+Blaze: what would you call me nia?
 
 ┌─────────────────────────────────────────────────────────────┐
 │ SHORT-TERM (Last 10 minutes)                                     │
 └─────────────────────────────────────────────────────────────┘
-Topic Flow: happy → coding → work → happy → coding
-Current Mood: neutral
-Active Topics: (none)
+Topic Flow: happy → coding → happy → social → food → happy → coding → sad → coding → happy → coding → tired → nia_meta → coding → work → coding → nia_meta → coding → nia_meta → coding
+Current Mood: negative
+Active Topics: coding(10), tired(1), nia_meta(3), work(1)
 Boundaries: (none)
 
 ┌─────────────────────────────────────────────────────────────┐
 │ LONG-TERM (LLM Summary)                                     │
 └─────────────────────────────────────────────────────────────┘
-Last Updated: 6 min ago
-Summary: [Previous session] Nia and Blaze discussed their morning moods, with Nia initially seeming preoccupied but later revealing she's fine. They then shifted focus to anime, specifically character-driven series with good design and personality, which Blaze enjoys watching. Nia should remember that Blaze recommends "One Piece" as a starting point for someone new to anime, and they can continue their conversation about it soon.
+Last Updated: 4 min ago
+Summary: The main topics discussed were Nia's cognitive load, energy consumption, and her relationship with Blaze. Blaze appears to be in a introspective and slightly impatient state, but also excited and caring, as they're working on improving Nia's code and performance. Nia should remember that forming new memories and beliefs can cause her to feel tired, and that Blaze is actively working to address this issue and improve their interactions.
 
 ┌─────────────────────────────────────────────────────────────┐
 │ PERSISTENCE (SQLite)                                        │
 └─────────────────────────────────────────────────────────────┘
-Total Summaries: 16
-Total Turns: 195
-Active Days: 3
-Sessions: 6
+Total Summaries: 27
+Total Turns: 525
+Active Days: 4
+Sessions: 7
 History Since: 1/7/2026
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INJECTED INTO PROMPT                                        │
 └─────────────────────────────────────────────────────────────┘
-Session: 2 min, 1 turns
+Session: 72 min, 58 turns
 
 📋 SESSION SUMMARY:
-[Previous session] Nia and Blaze discussed their morning moods, with Nia initially seeming preoccupied but later revealing she's fine. They then shifted focus to anime, specifically character-driven series with good design and personality, which Blaze enjoys watching. Nia should remember that Blaze recommends "One Piece" as a starting point for someone new to anime, and they can continue their conversation about it soon.
+The main topics discussed were Nia's cognitive load, energy consumption, and her relationship with Blaze. Blaze appears to be in a introspective and slightly impatient state, but also excited and caring, as they're working on improving Nia's code and performance. Nia should remember that forming new memories and beliefs can cause her to feel tired, and that Blaze is actively working to address this issue and improve their interactions.
 
 📍 RECENT CONTEXT:
-Topics: happy → coding → work
+Topics: food → sad → tired → nia_meta → work | Mood: negative | Focus: coding(10), nia_meta(3)
 
 💬 LAST FEW TURNS:
-Blaze: dang maybe it didnt go through, one more update brb
+Blaze: oh nia? i wonder if this works.... remember to add asterisks in your action responses
+Blaze: there we go yo udid it
+Blaze: what would you call me nia?

@@ -22,6 +22,7 @@ class SessionContextManager {
   constructor(options = {}) {
     // Config
     this.debugFilePath = options.debugFilePath || path.join(process.cwd(), 'session-context.txt');
+    this.llmClient = options.llmClient || null;  // Injected LLM client
     this.llmEndpoint = options.llmEndpoint || 'http://localhost:1234/v1/chat/completions';
     this.longTermUpdateInterval = options.longTermUpdateInterval || 5; // Every N turns
     this.userId = options.userId || 'blaze';  // For multi-user support
@@ -509,23 +510,39 @@ ${conversationText}
 
 Summary (2-3 sentences):`;
 
-      const response = await fetch(this.llmEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'local-model',
-          messages: [
-            { role: 'system', content: 'You are summarizing a conversation. Be concise.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 150
-        })
-      });
+      let summary = null;
       
-      if (response.ok) {
-        const data = await response.json();
-        this.longTerm.summary = data.choices[0].message.content.trim();
+      // Use injected llmClient if available
+      if (this.llmClient) {
+        summary = await this.llmClient.chat(
+          'You are summarizing a conversation. Be concise.',
+          [{ role: 'user', content: prompt }],
+          { temperature: 0.3, maxTokens: 150 }
+        );
+      } else {
+        // Fallback to local fetch
+        const response = await fetch(this.llmEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'local-model',
+            messages: [
+              { role: 'system', content: 'You are summarizing a conversation. Be concise.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 150
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          summary = data.choices[0].message.content.trim();
+        }
+      }
+      
+      if (summary) {
+        this.longTerm.summary = summary.trim ? summary.trim() : summary;
         this.longTerm.lastUpdated = Date.now();
         logger.debug(`Long-term summary updated: ${this.longTerm.summary.substring(0, 50)}...`);
         

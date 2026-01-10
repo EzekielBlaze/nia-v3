@@ -1,5 +1,3 @@
-[README.md](https://github.com/user-attachments/files/24539734/README.md)
-[README.md](https://github.com/user-attachments/files/24522223/README.md)
 # NIA V3 - Autonomous AI Companion with Emergent Identity
 
 > ***curls up in your VRAM*** *I'm Nia - a cozy catgirl who naps in your graphics card, remembers your pizza preferences, and is slowly learning what it means to be herself.*
@@ -51,12 +49,16 @@ A daemon-based AI companion featuring **persistent memory**, **emergent identity
 - Two-pass belief extraction with tone analysis
 - Subject attribution fixes
 
-### **Phase 5: Autonomy** ✅ *Partial*
+### **Phase 5: Autonomy** ✅ *Complete*
 *She reaches out when she has something to say.*
 - **Initiative Engine**: She can start conversations unprompted
-- Dead-end detection: Follows up if she left you hanging
-- Quiet hours awareness (won't bug you at 3am)
-- Presence tracking (knows when you're busy)
+- **Startup Awareness**: Contextual "I'm back!" based on last convo
+- **Pre-flight Checks**: LLM decides if now is actually a good time
+- **Activity Awareness**: Won't interrupt if you're doing something together
+- **Absence Detection**: Playful "Blaaaaze?? hellooo?" after 1-4 hours
+- **Dead-end Detection**: Follows up if she left you hanging
+- **Quiet Hours**: Won't bug you 1am-9am
+- **Presence Tracking**: Knows when you're busy or away
 - Discord integration 🔮 *Future*
 
 ---
@@ -212,10 +214,19 @@ She won't break, but she might need a moment.
 *"Sometimes I have something to say first."*
 
 She can reach out to you unprompted:
-- Shares things she's been thinking about
-- Follows up if her last message was a dead-end
-- Respects quiet hours (1am-9am)
-- Knows when you're busy or away
+
+| Trigger | Timing | What She Does |
+|---------|--------|---------------|
+| **Startup** | On boot | Contextual wake-up based on last convo |
+| **Reconnect** | 4+ hours | "FINALLY you're back!" (clingy catgirl mode) |
+| **Absence** | 1-4 hours | "Blaaaaze?? hellooo??" (playful poke) |
+| **Dead-end** | 2-15 min | Follows up if her last message was a dead-end |
+| **Activity** | 30+ min | Comments on having fun together |
+| **Realization** | Any time | Shares new beliefs/thoughts |
+
+**Pre-flight Check**: Before interrupting, she asks the LLM "is now a good time?" - won't blurt things out mid-conversation.
+
+**Activity Awareness**: If you're playing a game or doing something together, she won't complain about "being ignored."
 
 When she initiates, she *knows* she initiated - no confused "huh what's going on?"
 

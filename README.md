@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/24539734/README.md)
 [README.md](https://github.com/user-attachments/files/24522223/README.md)
 # NIA V3 - Autonomous AI Companion with Emergent Identity
 

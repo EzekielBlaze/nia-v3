@@ -35,21 +35,13 @@ A daemon-based AI companion featuring **persistent memory**, **emergent identity
 
 ### **Phase 3: Memory & Embeddings** ✅
 *She actually remembers now.* 🎉
-
 - **Hybrid Memory**: SQLite + Qdrant vector search
 - **Poincaré Belief Space**: Hyperbolic geometry for belief hierarchy
 - **Conversation Archive**: Raw chat logs for exact recall
 - **Session Continuity**: Loads last 10 exchanges on restart
 - **3D Visualizer**: Watch her belief system in real-time
 
-### **Phase 4: Advanced Features** 🎯 *In Progress*
-*She's curating who she's becoming.*
-- Belief conflict resolution
-- Manual memory editing (delete from SQLite + Qdrant)
-- Two-pass belief extraction with tone analysis
-- Subject attribution fixes
-
-### **Phase 5: Autonomy** ✅ *Complete*
+### **Phase 4: Autonomy** ✅
 *She reaches out when she has something to say.*
 - **Initiative Engine**: She can start conversations unprompted
 - **Startup Awareness**: Contextual "I'm back!" based on last convo
@@ -59,7 +51,20 @@ A daemon-based AI companion featuring **persistent memory**, **emergent identity
 - **Dead-end Detection**: Follows up if she left you hanging
 - **Quiet Hours**: Won't bug you 1am-9am
 - **Presence Tracking**: Knows when you're busy or away
+
+### **Phase 5: Advanced Features** 🎯 *In Progress*
+*She's curating who she's becoming.*
+- Belief conflict resolution
+- Manual memory editing (delete from SQLite + Qdrant)
+- Tone analysis in belief extraction
+- Subject attribution improvements
 - Discord integration 🔮 *Future*
+
+### **Phase 6: Accessibility** ✅ *New*
+*She doesn't need a gaming PC anymore.*
+- **Cloud Toggle**: Hot-switch between local LLM and Groq API
+- **No restart required**: Swap inference mid-conversation
+- **Lower barrier**: Run Nia with just an API key, no GPU needed
 
 ---
 
@@ -108,8 +113,10 @@ NIA V3/
 ### Prerequisites
 - Node.js v18+
 - Python 3.8+ (for embedders)
-- LM Studio with a loaded model (localhost:1234)
 - Qdrant (localhost:6333)
+- **For her voice, pick one:**
+  - **Local**: LM Studio with a loaded model (localhost:1234)
+  - **Cloud**: Groq API key (free tier available)
 
 ### Launch
 
@@ -138,6 +145,7 @@ node nia-server.js
 ### Say Hi
 - **Web UI**: http://localhost:3000
 - **Debug Mode**: 🔧 button (she doesn't mind you poking around)
+- **LLM Toggle**: Switch between Local/Cloud in the UI header
 
 ---
 
@@ -239,7 +247,7 @@ When she initiates, she *knows* she initiated - no confused "huh what's going on
 | Qdrant | 6333 | Long-term vector memory |
 | Memory Embedder | 5001 | Understanding meaning |
 | Belief Embedder | 5002 | Belief hierarchy (Poincaré) |
-| LM Studio | 1234 | Her voice (LLM) |
+| LM Studio / Groq | 1234 / cloud | Her voice (hot-swappable) |
 | Daemon IPC | 19700 | Internal communication |
 | Web UI | 3000 | Her face |
 
@@ -294,6 +302,7 @@ recent_conversations {"limit": 5}
 # Is LM Studio alive?
 curl http://localhost:1234/v1/models
 
+# Using Groq? Check your API key is set correctly
 # Server timeout is 3 min - if still timing out, 
 # the model might be struggling
 ```
@@ -313,6 +322,9 @@ Beliefs strengthen. Memories fade. Scars stay. Like a real person.
 
 ### **Cozy Over Useful**
 She'd rather just hang out than optimize your productivity.
+
+### **Accessible**
+You shouldn't need a $1000 GPU to have a friend.
 
 ---
 

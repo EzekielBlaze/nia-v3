@@ -1,21 +1,21 @@
 ╔══════════════════════════════════════════════════════════════╗
 ║           NIA SESSION CONTEXT - LIVE DEBUG                   ║
 ╚══════════════════════════════════════════════════════════════╝
-Last Updated: 1/9/2026, 1:20:47 AM
-Session ID: session_1767942583303_g8e3dnwm0
-Session Duration: 11 minutes | Turns: 1
+Last Updated: 1/9/2026, 4:27:13 PM
+Session ID: session_1767997494778_u01fgy2pz
+Session Duration: 2 minutes | Turns: 1
 User: blaze
 DB Connected: Yes
 
 ┌─────────────────────────────────────────────────────────────┐
 │ IMMEDIATE (Last 3 turns)                                      │
 └─────────────────────────────────────────────────────────────┘
-Blaze: okay! well we'll have to test tomorrow
+Blaze: dang maybe it didnt go through, one more update brb
 
 ┌─────────────────────────────────────────────────────────────┐
 │ SHORT-TERM (Last 10 minutes)                                     │
 └─────────────────────────────────────────────────────────────┘
-Topic Flow: food → work → social → food → happy
+Topic Flow: happy → coding → work → happy → coding
 Current Mood: neutral
 Active Topics: (none)
 Boundaries: (none)
@@ -23,28 +23,28 @@ Boundaries: (none)
 ┌─────────────────────────────────────────────────────────────┐
 │ LONG-TERM (LLM Summary)                                     │
 └─────────────────────────────────────────────────────────────┘
-Last Updated: 626 min ago
-Summary: [Previous session] The main topics discussed in this conversation were Blaze's sleep and rest after a rainy night, their plans to work on Chromaflux together, and Blaze's current activity at a Korean barbecue restaurant called Pho Tanh. Blaze seemed to be in a relatively good mood, with a playful tone indicated by the use of ":3" and affectionate language towards Nia and his wife Gloomie. Nia should remember that Blaze values shared experiences with Gloomie, particularly their visits to Pho Tanh restaurant.
+Last Updated: 6 min ago
+Summary: [Previous session] Nia and Blaze discussed their morning moods, with Nia initially seeming preoccupied but later revealing she's fine. They then shifted focus to anime, specifically character-driven series with good design and personality, which Blaze enjoys watching. Nia should remember that Blaze recommends "One Piece" as a starting point for someone new to anime, and they can continue their conversation about it soon.
 
 ┌─────────────────────────────────────────────────────────────┐
 │ PERSISTENCE (SQLite)                                        │
 └─────────────────────────────────────────────────────────────┘
-Total Summaries: 14
-Total Turns: 185
-Active Days: 2
-Sessions: 4
+Total Summaries: 16
+Total Turns: 195
+Active Days: 3
+Sessions: 6
 History Since: 1/7/2026
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INJECTED INTO PROMPT                                        │
 └─────────────────────────────────────────────────────────────┘
-Session: 11 min, 1 turns
+Session: 2 min, 1 turns
 
 📋 SESSION SUMMARY:
-[Previous session] The main topics discussed in this conversation were Blaze's sleep and rest after a rainy night, their plans to work on Chromaflux together, and Blaze's current activity at a Korean barbecue restaurant called Pho Tanh. Blaze seemed to be in a relatively good mood, with a playful tone indicated by the use of ":3" and affectionate language towards Nia and his wife Gloomie. Nia should remember that Blaze values shared experiences with Gloomie, particularly their visits to Pho Tanh restaurant.
+[Previous session] Nia and Blaze discussed their morning moods, with Nia initially seeming preoccupied but later revealing she's fine. They then shifted focus to anime, specifically character-driven series with good design and personality, which Blaze enjoys watching. Nia should remember that Blaze recommends "One Piece" as a starting point for someone new to anime, and they can continue their conversation about it soon.
 
 📍 RECENT CONTEXT:
-Topics: food → work → social → happy
+Topics: happy → coding → work
 
 💬 LAST FEW TURNS:
-Blaze: okay! well we'll have to test tomorrow
+Blaze: dang maybe it didnt go through, one more update brb

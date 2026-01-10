@@ -2781,7 +2781,10 @@ ${fullContext}
       const maxRetries = 4;  // Increased from 2
       
       while (retryCount <= maxRetries) {
+        console.time('⏱️ LLM call');
+        console.log(`📏 System prompt: ${systemPrompt.length} chars, History: ${this.conversationHistory.length} messages`);
         rawResponse = await this._callLLM(systemPrompt, this.conversationHistory);
+        console.timeEnd('⏱️ LLM call');
         
         // 5. Extract and validate thinking
         extractedData = this._extractThinking(rawResponse);
